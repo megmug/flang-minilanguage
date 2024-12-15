@@ -9,4 +9,4 @@ main = do
   input <- readFile (head args)
   case tokenize input of
     Left e -> putStrLn $ "Lexical error: " ++ show e
-    Right (ts) -> putStrLn $ "Successfully tokenized program: " ++ (show (map fst ts))
+    Right ts -> putStrLn $ "Successfully tokenized program: " ++ show (map fst ts)

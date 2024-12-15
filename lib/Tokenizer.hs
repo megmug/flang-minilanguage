@@ -12,12 +12,11 @@ type Tokenizer = Parsec String () [TokenPos]
 -- tokenizers that ignore certain chars
 type Ignorer = Parsec String () Char
 
-getUnitTokenizer :: String -> Token -> UnitTokenizer
-getUnitTokenizer s t = ((,) t <$> getPosition) <* string s
+getUnitTokenizer :: (String, Token) -> UnitTokenizer
+getUnitTokenizer (s, t) = ((,) t <$> getPosition) <* string s
 
 getUnitTokenizers :: [(String, Token)] -> [UnitTokenizer]
-getUnitTokenizers [] = []
-getUnitTokenizers ((s, t) : sts) = getUnitTokenizer s t : getUnitTokenizers sts
+getUnitTokenizers = map getUnitTokenizer 
 
 -- here we define the mapping from our basic string tokens to their atomic abstract token counterparts
 reservedSymbolsAndWords :: [UnitTokenizer]
@@ -69,7 +68,7 @@ anyIgnored = choice [space, endOfLine, tab]
 -- this is our program tokenizer
 tokenizer :: Tokenizer
 tokenizer = do
-  ts <- many $ try $ (many anyIgnored) *> anySingleToken
+  ts <- many $ try $ many anyIgnored *> anySingleToken
   _ <- many anyIgnored
   eof
   return ts
