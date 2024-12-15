@@ -4,9 +4,7 @@
     rev = "a0f3e10d94359665dba45b71b4227b0aeb851f8e";
 } ) {} }:
 
-pkgs.stdenv.mkDerivation {
-    name = "flang";
-
+pkgs.mkShell {
     buildInputs = [
         pkgs.ghc
 	    pkgs.haskellPackages.haskell-language-server
