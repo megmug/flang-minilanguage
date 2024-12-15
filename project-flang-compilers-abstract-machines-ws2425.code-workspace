@@ -11,7 +11,10 @@
 				"path": "nix-shell",
 				"icon": "terminal-bash"
 			}
-		}
+		},
+		"haskell.manageHLS": "PATH",
+		"direnv.restart.automatic": true,
+		"haskell.plugin.semanticTokens.globalOn": true
 	},
 	"extensions": {
 		"recommendations": [
