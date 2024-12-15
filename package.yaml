@@ -7,11 +7,17 @@ description: Please see README.md
 
 dependencies:
 - base
+- parsec
+
+library:
+ source-dirs: lib
 
 ghc-options:
 - -Wall
 
 executables:
-  hello:
-    main:        Hello.hs
+  flang-tokenize:
+    main:        flang-tokenize.hs
     source-dirs: app
+    dependencies:
+    - flang
