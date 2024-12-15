@@ -1,6 +1,21 @@
 module Tokenizer where
 
 import Text.Parsec
+    ( digit,
+      endOfLine,
+      satisfy,
+      space,
+      string,
+      tab,
+      choice,
+      eof,
+      many1,
+      getPosition,
+      many,
+      parse,
+      try,
+      ParseError,
+      Parsec )
 import Token (Token (..), TokenPos)
 
 -- we have tokenizers for single tokens
