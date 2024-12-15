@@ -1,0 +1,17 @@
+name:       flang
+version:    0.0.0.0
+author:     "Daniel Maier"
+maintainer: "maier.dan@campus.lmu.de"
+
+description: Please see README.md
+
+dependencies:
+- base
+
+ghc-options:
+- -Wall
+
+executables:
+  hello:
+    main:        Hello.hs
+    source-dirs: app

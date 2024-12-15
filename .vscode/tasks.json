@@ -1,0 +1,53 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Build with stack",
+            "type": "shell",
+            "command": "stack",
+            "args": [
+                "build"
+            ],
+            "options": {
+                "shell": {
+                    "executable" : "nix-shell",
+                    "args": ["--command"]
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        },
+        {
+            "label": "Run ghci with stack",
+            "type": "shell",
+            "command": "stack",
+            "args" : [
+                "ghci"
+            ],
+            "options": {
+                "shell": {
+                    "executable" : "nix-shell",
+                    "args": ["--command"]
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "none",
+                "isDefault": true
+            },
+        }
+    ]
+}
