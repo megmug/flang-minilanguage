@@ -1,21 +1,22 @@
 module Tokenizer where
 
 import Text.Parsec
-    ( digit,
-      endOfLine,
-      satisfy,
-      space,
-      string,
-      tab,
-      choice,
-      eof,
-      many1,
-      getPosition,
-      many,
-      parse,
-      try,
-      ParseError,
-      Parsec )
+  ( ParseError,
+    Parsec,
+    choice,
+    digit,
+    endOfLine,
+    eof,
+    getPosition,
+    many,
+    many1,
+    parse,
+    satisfy,
+    space,
+    string,
+    tab,
+    try,
+  )
 import Token (Token (..), TokenPos)
 
 -- we have tokenizers for single tokens
@@ -31,7 +32,7 @@ getUnitTokenizer :: (String, Token) -> UnitTokenizer
 getUnitTokenizer (s, t) = ((,) t <$> getPosition) <* string s
 
 getUnitTokenizers :: [(String, Token)] -> [UnitTokenizer]
-getUnitTokenizers = map getUnitTokenizer 
+getUnitTokenizers = map getUnitTokenizer
 
 -- here we define the mapping from our basic string tokens to their atomic abstract token counterparts
 reservedSymbolsAndWords :: [UnitTokenizer]
@@ -64,15 +65,15 @@ lowerchar = ['a' .. 'z']
 
 name :: UnitTokenizer
 name = do
-    p <- getPosition
-    n <- many1 $ satisfy (`elem` lowerchar)
-    return (Name n, p)
+  p <- getPosition
+  n <- many1 $ satisfy (`elem` lowerchar)
+  return (Name n, p)
 
 integer :: UnitTokenizer
 integer = do
-    p <- getPosition
-    ds <- many1 digit
-    return (Integer $ read ds, p)
+  p <- getPosition
+  ds <- many1 digit
+  return (Integer $ read ds, p)
 
 anySingleToken :: UnitTokenizer
 anySingleToken = choice $ try <$> reservedSymbolsAndWords ++ [name, integer]
