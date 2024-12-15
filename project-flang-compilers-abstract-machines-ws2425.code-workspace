@@ -5,14 +5,18 @@
 		}
 	],
 	"settings": {
-		"nixEnvSelector.suggestion": false,
 		"terminal.integrated.defaultProfile.linux": "nix-shell",
 		"terminal.integrated.profiles.linux": {
 			"nix-shell": {
 				"path": "nix-shell",
 				"icon": "terminal-bash"
 			}
-		},
-		"nixEnvSelector.nixFile": "${workspaceRoot}/default.nix"
+		}
+	},
+	"extensions": {
+		"recommendations": [
+			"haskell.haskell",
+			"mkhl.direnv"
+		]
 	}
 }
