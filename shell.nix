@@ -1,7 +1,7 @@
 { pkgs ? import ( builtins.fetchGit {
     url = "https://github.com/nixos/nixpkgs/";
     ref = "nixos-24.11";
-    rev = "a0f3e10d94359665dba45b71b4227b0aeb851f8e";
+    rev = "9f94733f93e4fe6e82f516efae007096e4ab5a21";
 } ) {} }:
 
 pkgs.mkShell {
