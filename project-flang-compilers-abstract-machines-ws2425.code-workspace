@@ -7,7 +7,7 @@
 	"settings": {
 		"haskell.manageHLS": "PATH",
 		"direnv.restart.automatic": true,
-		"haskell.plugin.semanticTokens.globalOn": true
+		"haskell.sessionLoading": "multipleComponents"
 	},
 	"extensions": {
 		"recommendations": [
