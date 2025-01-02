@@ -8,6 +8,11 @@ description: Please see README.md
 dependencies:
 - base
 - parsec
+- transformers
+- containers
+- vector
+- lens
+- extra
 
 library:
  source-dirs: lib
@@ -18,6 +23,18 @@ ghc-options:
 executables:
   flang-tokenize:
     main:        flang-tokenize.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-run-vmcode:
+    main:        flang-run-vmcode.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-run-vmcode-debug:
+    main: flang-run-vmcode-debug.hs
     source-dirs: app
     dependencies:
     - flang
