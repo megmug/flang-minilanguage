@@ -241,20 +241,20 @@ step = do
           push top
           jumpTo $ fromInteger returnAddr
     {- TODO -}
-    Unwind -> do iregister .= Halt
+    Unwind -> do throwDiagnosticError "Unwind: Not implemented!"
     {- TODO -}
-    Call -> do iregister .= Halt
+    Call -> do throwDiagnosticError "Call: Not implemented!"
     Return -> do
       res <- pop
       returnAddr <- pop
       push res
       jumpTo $ fromInteger returnAddr
     {- TODO -}
-    Pushpre _ -> do iregister .= Halt
+    Pushpre _ -> do throwDiagnosticError "Pushpre: Not implemented!"
     {- TODO -}
-    Update _ -> do iregister .= Halt
+    Update _ -> do throwDiagnosticError "Update: Not implemented!"
     {- TODO -}
-    Operator _ -> do iregister .= Halt
+    Operator _ -> do throwDiagnosticError "Operator: Not implemented!"
     Halt -> do return ()
 
 run :: Computation Object
