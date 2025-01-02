@@ -18,6 +18,7 @@ main = do
       run machine 0
     Nothing -> putStrLn "Malformed machine code!"
   where
+    run :: Machine -> Integer -> IO ()
     run m i = do
       putStrLn $ "Machine state in step " ++ show i ++ ": "
       putStrLn $ prettyPrintMachineState m ++ "\n"
