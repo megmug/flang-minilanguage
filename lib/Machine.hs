@@ -10,15 +10,20 @@ import Control.Monad.Extra (whileM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, get, runState)
-import Data.IntMap as M (IntMap, empty, filter, insert, lookup, lookupMin)
+import Data.IntMap as M (IntMap, adjust, filter, insert, lookup, lookupMin, fromList)
 import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
+import Data.List.Index as I (indexed)
 import MachineInstruction
   ( CodeAddress,
+    FOperator (..),
     FType (..),
     FunctionName,
     HeapAddress,
     Instruction (..),
-    StackCell,
+    OperatorArg (..),
+    StackAddress,
+    StackElement,
+    UpdateArg (..),
   )
 
 {- Type definitions -}
@@ -34,7 +39,7 @@ data Machine
 
 type Code = V.Vector Instruction
 
-type Stack = V.Vector StackCell
+type Stack = V.Vector StackElement
 
 type InstructionRegister = Instruction
 
@@ -48,7 +53,9 @@ data Object
   = VAL FType Integer
   | DEF FunctionName Int CodeAddress
   | APP HeapAddress HeapAddress
-  deriving (Eq, Show)
+  | IND HeapAddress
+  | PRE FOperator
+  deriving (Eq, Show, Read)
 
 -- A computation is a monadic action featuring a Machine state and a possible string exception
 -- The result might be a string, but it doesn't have to be
@@ -77,8 +84,6 @@ heap f (Machine c s i pc o h) = (\h' -> Machine c s i pc o h') <$> f h
 
 {--}
 
-{- Common small computations -}
-
 {- Utility functions and computations -}
 prettyPrintMachineState :: Machine -> String
 prettyPrintMachineState (Machine _ s ir pc oc h) = "Stack: " ++ show s ++ "\nInstruction register: " ++ show ir ++ "\nProgram counter: " ++ show pc ++ "\nObject counter: " ++ show oc ++ "\nHeap: " ++ show h
@@ -88,9 +93,12 @@ getObject a = do
   h <- use heap
   case M.lookup a h of
     Nothing -> throwDiagnosticError $ "heapGetObj: address " ++ show a ++ " out of range!"
-    Just o -> return o
+    {- In this case we recurse until the last indirection is resolved - this will recurse indefinitely in case there is a loop in the graph! -}
+    Just o -> case o of
+      (IND h') -> getObject h'
+      _ -> return o
 
-push :: StackCell -> Computation ()
+push :: StackElement -> Computation ()
 push n = do
   s <- use stack
   stack .= V.snoc s n
@@ -110,13 +118,16 @@ throwDiagnosticError e = do
   throwE $ e ++ "\n" ++ prettyPrintMachineState m
 
 createMachine :: [Instruction] -> Maybe Machine
-createMachine [] = Nothing
-createMachine (c : cs) = Just $ Machine (V.fromList (c : cs)) (V.fromList []) c 1 0 M.empty
+createMachine = createMachineWithHeap []
+
+createMachineWithHeap :: [Object] -> [Instruction] -> Maybe Machine
+createMachineWithHeap _ [] = Nothing
+createMachineWithHeap os (c : cs) = Just $ Machine (V.fromList (c : cs)) (V.fromList []) c 1 (Prelude.length os) (M.fromList $ I.indexed os)
 
 isIndexForVector :: Int -> V.Vector a -> Bool
 isIndexForVector i v = 0 <= i && i < V.length v
 
-pop :: Computation StackCell
+pop :: Computation StackElement
 pop = do
   s <- use stack
   case V.unsnoc s of
@@ -160,12 +171,33 @@ new o = do
   ocounter += 1
   return ocount
 
+overrideObject :: HeapAddress -> Object -> Computation ()
+overrideObject ha newObject = do
+  h <- use heap
+  heap .= M.adjust (const newObject) ha h
+
 objType :: HeapAddress -> Computation FType
 objType a = do
   o <- getObject a
   case o of
     VAL t _ -> return t
     _ -> throwDiagnosticError $ "objType: object " ++ show o ++ " isn't of VAL type!"
+
+getStackElement :: StackAddress -> Computation StackElement
+getStackElement sa = do
+  s <- use stack
+  if isIndexForVector sa s
+    then do
+      return $ fromInteger $ s V.! sa
+    else throwDiagnosticError "getStackElement: index out of range!"
+
+integerToBool :: Integer -> Bool
+integerToBool 0 = False
+integerToBool _ = True
+
+boolToInteger :: (Num a) => Bool -> a
+boolToInteger False = 0
+boolToInteger True = 1
 
 {--}
 
@@ -182,6 +214,10 @@ step = do
       _ <- new $ DEF f n a
       pc <- use programcounter
       jumpTo pc
+    {- NOOP for compatibility sake -}
+    Reset -> do
+      pc <- use programcounter
+      jumpTo pc
     Pushfun f -> do
       a <- address f
       push $ toInteger a
@@ -195,12 +231,9 @@ step = do
     Pushparam n -> do
       s <- use stack
       let sa = V.length s - n - 2
-      if isIndexForVector sa s
-        then do
-          let ha = fromInteger $ s V.! sa
-          paramAddr <- add2arg ha
-          push $ toInteger paramAddr
-        else throwDiagnosticError "Pushparam: index out of range!"
+      ha <- getStackElement sa
+      paramAddr <- add2arg $ fromInteger ha
+      push $ toInteger paramAddr
       pc <- use programcounter
       jumpTo pc
     Makeapp -> do
@@ -240,21 +273,156 @@ step = do
           returnAddr <- pop
           push top
           jumpTo $ fromInteger returnAddr
-    {- TODO -}
-    Unwind -> do throwDiagnosticError "Unwind: Not implemented!"
-    {- TODO -}
-    Call -> do throwDiagnosticError "Call: Not implemented!"
+        _ -> throwDiagnosticError "Reduce: Malformed object detected!"
+    Unwind -> do
+      top <- pop
+      push top
+      obj <- getObject $ fromInteger top
+      case obj of
+        (APP a1 _) -> push $ toInteger a1
+        _ -> do
+          pc <- use programcounter
+          jumpTo pc
+    Call -> do
+      top <- pop
+      push top
+      obj <- getObject $ fromInteger top
+      case obj of
+        (VAL _ _) -> do
+          pc <- use programcounter
+          jumpTo pc
+        (DEF _ _ a) -> do
+          pc <- use programcounter
+          push $ toInteger pc
+          jumpTo a
+        {- binary operator-}
+        (PRE op)
+          | op `elem` [Equals, Smaller, Plus, Minus, Times, Divide, And, Or] -> do
+              pc <- use programcounter
+              push $ toInteger pc
+              {- push representation of operator onto stack -}
+              push top
+              {- this is nasty - but according to spec! -}
+              jumpTo 4
+          {- ternary operator: if-}
+          | op == FIf -> do
+              pc <- use programcounter
+              push $ toInteger pc
+              {- this is nasty - but according to spec! -}
+              jumpTo 13
+          {- unary operator: otherwise op == Not -}
+          | otherwise -> do
+              pc <- use programcounter
+              push $ toInteger pc
+              {- push representation of operator onto stack -}
+              push top
+              jumpTo 19
+        _ -> throwDiagnosticError "Call: Malformed object detected!"
     Return -> do
       res <- pop
       returnAddr <- pop
       push res
       jumpTo $ fromInteger returnAddr
+    Pushpre op -> do
+      obj <- new $ PRE op
+      push $ toInteger obj
+      pc <- use programcounter
+      jumpTo pc
+    Update arg -> do
+      case arg of
+        PredefinedOperator -> do
+          {- in case of a predefined operator, discard top element and swap remaining two top elements -}
+          newValAddr <- pop
+          returnAddr <- pop
+          oldExprAddr <- pop
+          push returnAddr
+          push oldExprAddr
+          {- Adjust heap cell at old expression address 
+             Weirdly, this is missing in the spec but necessary to implement the (lazy) evaluation correctly 
+             It is mentioned briefly in the introduction of the new instructions for complete MF though -}
+          overrideObject (fromInteger oldExprAddr) (IND $ fromInteger newValAddr)
+        Arity n -> do
+          {- replace subexpression graph in heap by an indirection to the value it evaluates to
+             this implements lazy evaluation since this indirection applies to every other expression that points to it -}
+          s <- use stack
+          top <- pop
+          push top
+          let sa = V.length s - n - 3
+          ha <- getStackElement sa
+          overrideObject (fromInteger ha) (IND $ fromInteger top)
+      pc <- use programcounter
+      jumpTo pc
     {- TODO -}
-    Pushpre _ -> do throwDiagnosticError "Pushpre: Not implemented!"
-    {- TODO -}
-    Update _ -> do throwDiagnosticError "Update: Not implemented!"
-    {- TODO -}
-    Operator _ -> do throwDiagnosticError "Operator: Not implemented!"
+    Operator op -> case op of
+      One -> do
+        operandAddr <- pop
+        opAddr <- pop
+        returnAddr <- pop
+        _ <- pop
+        op' <- getObject $ fromInteger opAddr
+        if op' /= PRE Not
+          then throwDiagnosticError "Operator: Type error!"
+          else do
+            push returnAddr
+            {- Logically negate the operand, create resulting VAL on the heap and push result address onto stack -}
+            operandObj <- getObject $ fromInteger operandAddr
+            case operandObj of
+              (VAL FBool b) -> do
+                res <- new $ VAL FBool (boolToInteger $ not $ integerToBool b)
+                push $ toInteger res
+              _ -> throwDiagnosticError "Operator: Type error!"
+        pc <- use programcounter
+        jumpTo pc
+      Two -> do
+        operand1Addr <- pop
+        operand2Addr <- pop
+        opAddr <- pop
+        returnAddr <- pop
+        _ <- pop
+        _ <- pop
+        opObj <- getObject $ fromInteger opAddr
+        operand1Obj <- getObject $ fromInteger operand1Addr
+        operand2Obj <- getObject $ fromInteger operand2Addr
+        resObj <- case (operand1Obj, operand2Obj, opObj) of
+          (VAL FInteger op1, VAL FInteger op2, PRE Equals) -> return $ VAL FInteger $ boolToInteger $ op1 == op2
+          (VAL FBool op1, VAL FBool op2, PRE Equals) -> return $ VAL FBool $ boolToInteger $ op1 == op2
+          (VAL FInteger op1, VAL FInteger op2, PRE Smaller) -> return $ VAL FInteger $ boolToInteger $ op1 < op2
+          (VAL FInteger op1, VAL FInteger op2, PRE Plus) -> return $ VAL FInteger $ op1 + op2
+          (VAL FInteger op1, VAL FInteger op2, PRE Minus) -> return $ VAL FInteger $ op1 - op2
+          (VAL FInteger op1, VAL FInteger op2, PRE Times) -> return $ VAL FInteger $ op1 * op2
+          (VAL FInteger op1, VAL FInteger op2, PRE Divide) -> return $ VAL FInteger $ op1 `div` op2
+          -- implementing and as multiplication
+          (VAL FBool op1, VAL FBool op2, PRE And) -> return $ VAL FBool $ op1 * op2
+          -- for Or, addition doesn't quite work, e.g. -1 + 1 = 0
+          (VAL FBool op1, VAL FBool op2, PRE Or) -> return $ VAL FBool $ boolToInteger $ integerToBool op1 || integerToBool op2
+          _ -> throwDiagnosticError "Operator: Type error!"
+
+        push returnAddr
+        resAddr <- new resObj
+        push $ toInteger resAddr
+
+        pc <- use programcounter
+        jumpTo pc
+      OpIf -> do
+        condAddr <- pop
+        _ <- pop
+        returnAddr <- pop
+        _ <- pop
+        trueBranchAddr <- pop
+        falseBranchAddr <- pop
+
+        condObj <- getObject $ fromInteger condAddr
+        resAppAddr <- case condObj of
+          (VAL FBool b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
+          _ -> throwDiagnosticError "Operator: Type error"
+        resAddr <- add2arg $ fromInteger resAppAddr
+
+        {- Push elements to stack - the spec is wrong, so unsure what exactly is the right thing to do here (?) -}
+        push returnAddr
+        push $ toInteger resAddr
+
+        pc <- use programcounter
+        jumpTo pc
     Halt -> do return ()
 
 run :: Computation Object
@@ -263,8 +431,8 @@ run = do
   a <- pop
   getObject $ fromInteger a
 
-runProgram :: [Instruction] -> String
-runProgram prog = case createMachine prog of
+runProgram :: [Object] -> [Instruction] -> String
+runProgram h prog = case createMachineWithHeap h prog of
   Nothing -> "Invalid machine code"
   Just m -> case runState (runExceptT run) m of
     (Left msg, _) -> msg

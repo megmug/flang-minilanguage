@@ -6,11 +6,13 @@ type CodeAddress = Int
 
 type HeapAddress = Int
 
-type Arity = Int
+type StackAddress = Int
 
-type StackCell = Integer
+type StackElement = Integer
 
 data FType = FInteger | FBool deriving (Eq, Show, Read)
+
+type Arity = Int
 
 data UpdateArg = PredefinedOperator | Arity Int deriving (Eq, Show, Read)
 
@@ -30,7 +32,8 @@ data FOperator
   deriving (Eq, Show, Read)
 
 data Instruction
-  = AddDef FunctionName Arity CodeAddress
+  = Reset
+  | AddDef FunctionName Arity CodeAddress
   | Pushfun FunctionName
   | Pushval FType Integer
   | Pushparam Int

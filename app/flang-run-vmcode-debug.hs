@@ -1,6 +1,6 @@
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.State (runState)
-import Machine (Machine (..), createMachine, isNotHalted, prettyPrintMachineState, step)
+import Machine (Object, Machine (..), createMachineWithHeap, isNotHalted, prettyPrintMachineState, step)
 import MachineInstruction (Instruction (..))
 import System.Environment (getArgs)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
@@ -10,8 +10,8 @@ main = do
   hSetBuffering stdout NoBuffering
   args <- getArgs
   input <- readFile (head args)
-  let prog = read input :: [Instruction]
-  case createMachine prog of
+  let (heap, prog) = read input :: ([Object], [Instruction])
+  case createMachineWithHeap heap prog of
     Just machine@(Machine c _ _ _ _ _) -> do
       putStrLn $ "Machine code: " ++ show c
       putStrLn "Running machine now step by step:"
