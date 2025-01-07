@@ -112,6 +112,11 @@ jumpTo a = do
       programcounter .= a + 1
     else throwError "code address out of range"
 
+loadNextInstruction :: Computation ()
+loadNextInstruction = do
+  pc <- use programcounter
+  jumpTo pc
+
 throwError :: String -> Computation a
 throwError e = do
   m <- lift get
@@ -212,37 +217,30 @@ step = do
        This is a replacement for the otherwise necessary predefined global function definition environment -}
     AddDef f n a -> do
       _ <- new $ DEF f n a
-      pc <- use programcounter
-      jumpTo pc
+      loadNextInstruction
     {- NOOP for compatibility sake -}
-    Reset -> do
-      pc <- use programcounter
-      jumpTo pc
+    Reset -> loadNextInstruction
     Pushfun f -> do
       a <- address f
       push $ toInteger a
-      pc <- use programcounter
-      jumpTo pc
+      loadNextInstruction
     Pushval t n -> do
       a <- new $ VAL t n
       push $ toInteger a
-      pc <- use programcounter
-      jumpTo pc
+      loadNextInstruction
     Pushparam n -> do
       s <- use stack
       let sa = V.length s - n - 2
       ha <- getStackElement sa
       paramAddr <- add2arg $ fromInteger ha
       push $ toInteger paramAddr
-      pc <- use programcounter
-      jumpTo pc
+      loadNextInstruction
     Makeapp -> do
       a1 <- pop
       a2 <- pop
       a <- new $ APP (fromInteger a1) (fromInteger a2)
       push $ toInteger a
-      pc <- use programcounter
-      jumpTo pc
+      loadNextInstruction
     Slide n -> do
       top <- pop
       sndtop <- pop
@@ -254,6 +252,7 @@ step = do
           push sndtop
           push top
         else throwError "Slide: can't slide so many elements, stack too small!"
+      loadNextInstruction
     Reduce -> do
       top <- pop
       o <- getObject $ fromInteger top
@@ -278,17 +277,13 @@ step = do
       obj <- getObject $ fromInteger top
       case obj of
         (APP a1 _) -> push $ toInteger a1
-        _ -> do
-          pc <- use programcounter
-          jumpTo pc
+        _ -> loadNextInstruction
     Call -> do
       top <- pop
       push top
       obj <- getObject $ fromInteger top
       case obj of
-        (VAL _ _) -> do
-          pc <- use programcounter
-          jumpTo pc
+        (VAL _ _) -> loadNextInstruction
         (DEF _ _ a) -> do
           pc <- use programcounter
           push $ toInteger pc
@@ -324,8 +319,7 @@ step = do
     Pushpre op -> do
       obj <- new $ PRE op
       push $ toInteger obj
-      pc <- use programcounter
-      jumpTo pc
+      loadNextInstruction
     Update arg -> do
       case arg of
         PredefinedOperator -> do
@@ -335,8 +329,8 @@ step = do
           oldExprAddr <- pop
           push returnAddr
           push oldExprAddr
-          {- Adjust heap cell at old expression address 
-             Weirdly, this is missing in the spec but necessary to implement the (lazy) evaluation correctly 
+          {- Adjust heap cell at old expression address
+             Weirdly, this is missing in the spec but necessary to implement the (lazy) evaluation correctly
              It is mentioned briefly in the introduction of the new instructions for complete MF though -}
           overrideObject (fromInteger oldExprAddr) (IND $ fromInteger newValAddr)
         Arity n -> do
@@ -348,9 +342,7 @@ step = do
           let sa = V.length s - n - 3
           ha <- getStackElement sa
           overrideObject (fromInteger ha) (IND $ fromInteger top)
-      pc <- use programcounter
-      jumpTo pc
-    {- TODO -}
+      loadNextInstruction
     Operator op -> case op of
       One -> do
         operandAddr <- pop
@@ -369,6 +361,7 @@ step = do
                 res <- new $ VAL FBool (boolToInteger $ not $ integerToBool b)
                 push $ toInteger res
               _ -> throwError "Operator: Type error!"
+        loadNextInstruction
       Two -> do
         operand1Addr <- pop
         operand2Addr <- pop
@@ -397,8 +390,7 @@ step = do
         resAddr <- new resObj
         push $ toInteger resAddr
 
-        pc <- use programcounter
-        jumpTo pc
+        loadNextInstruction
       OpIf -> do
         condAddr <- pop
         _ <- pop
@@ -417,8 +409,7 @@ step = do
         push returnAddr
         push $ toInteger resAddr
 
-        pc <- use programcounter
-        jumpTo pc
+        loadNextInstruction
     Halt -> do return ()
 
 run :: Computation Object
