@@ -14,7 +14,8 @@ import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, looku
 import Data.List.Index as I (indexed)
 import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
 import MachineInstruction
-  ( CodeAddress,
+  ( Arity,
+    CodeAddress,
     FOperator (..),
     FType (..),
     FunctionName,
@@ -22,7 +23,7 @@ import MachineInstruction
     Instruction (..),
     OperatorArg (..),
     StackAddress,
-    UpdateArg (..), Arity,
+    UpdateArg (..),
   )
 
 {- Type definitions -}
