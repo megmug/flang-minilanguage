@@ -74,8 +74,8 @@ stack f (Machine c s i pc o h) = (\s' -> Machine c s' i pc o h) <$> f s
 iregister :: (Functor f) => (InstructionRegister -> f InstructionRegister) -> Machine -> f Machine
 iregister f (Machine c s i pc o h) = (\i' -> Machine c s i' pc o h) <$> f i
 
-programcounter :: (Functor f) => (ProgramCounter -> f ProgramCounter) -> Machine -> f Machine
-programcounter f (Machine c s i pc o h) = (\pc' -> Machine c s i pc' o h) <$> f pc
+pcounter :: (Functor f) => (ProgramCounter -> f ProgramCounter) -> Machine -> f Machine
+pcounter f (Machine c s i pc o h) = (\pc' -> Machine c s i pc' o h) <$> f pc
 
 ocounter :: (Functor f) => (ObjectCounter -> f ObjectCounter) -> Machine -> f Machine
 ocounter f (Machine c s i pc o h) = (\o' -> Machine c s i pc o' h) <$> f o
@@ -110,12 +110,12 @@ jumpTo a = do
   if isIndexForVector a prog
     then do
       iregister .= prog V.! a
-      programcounter .= a + 1
+      pcounter .= a + 1
     else throwError "code address out of range"
 
 loadNextInstruction :: Computation ()
 loadNextInstruction = do
-  pc <- use programcounter
+  pc <- use pcounter
   jumpTo pc
 
 throwError :: String -> Computation a
@@ -262,7 +262,7 @@ step = do
           push a1
         (DEF _ _ a) -> do
           push top
-          pc <- use programcounter
+          pc <- use pcounter
           {- Here we don't need to push pc + 1 because pc already points to the next instruction as per the instruction cycle -}
           push pc
           jumpTo a
@@ -285,13 +285,13 @@ step = do
       case obj of
         (VAL _ _) -> loadNextInstruction
         (DEF _ _ a) -> do
-          pc <- use programcounter
+          pc <- use pcounter
           push pc
           jumpTo a
         {- binary operator-}
         (PRE op)
           | op `elem` [Equals, Smaller, Plus, Minus, Times, Divide, And, Or] -> do
-              pc <- use programcounter
+              pc <- use pcounter
               push pc
               {- push representation of operator onto stack -}
               push top
@@ -299,13 +299,13 @@ step = do
               jumpTo 4
           {- ternary operator: if-}
           | op == FIf -> do
-              pc <- use programcounter
+              pc <- use pcounter
               push pc
               {- this is nasty - but according to spec! -}
               jumpTo 13
           {- unary operator: otherwise op == Not -}
           | otherwise -> do
-              pc <- use programcounter
+              pc <- use pcounter
               push pc
               {- push representation of operator onto stack -}
               push top
