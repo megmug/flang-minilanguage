@@ -22,8 +22,7 @@ import MachineInstruction
     Instruction (..),
     OperatorArg (..),
     StackAddress,
-    StackElement,
-    UpdateArg (..),
+    UpdateArg (..), Arity,
   )
 
 {- Type definitions -}
@@ -41,6 +40,8 @@ type Code = V.Vector Instruction
 
 type Stack = V.Vector StackElement
 
+type StackElement = Int
+
 type InstructionRegister = Instruction
 
 type ProgramCounter = Int
@@ -51,14 +52,14 @@ type Heap = M.IntMap Object
 
 data Object
   = VAL FType Integer
-  | DEF FunctionName Int CodeAddress
+  | DEF FunctionName Arity CodeAddress
   | APP HeapAddress HeapAddress
   | IND HeapAddress
   | PRE FOperator
   deriving (Eq, Show, Read)
 
 -- A computation is a monadic action featuring a Machine state and a possible string exception
--- The result might be a string, but it doesn't have to be
+-- The result is some object of type a
 type Computation a = ExceptT String (State Machine) a
 
 {--}
@@ -192,8 +193,7 @@ getStackElement :: StackAddress -> Computation StackElement
 getStackElement sa = do
   s <- use stack
   if isIndexForVector sa s
-    then do
-      return $ fromInteger $ s V.! sa
+    then return $ s V.! sa
     else throwError "getStackElement: index out of range!"
 
 integerToBool :: Integer -> Bool
@@ -222,24 +222,24 @@ step = do
     Reset -> loadNextInstruction
     Pushfun f -> do
       a <- address f
-      push $ toInteger a
+      push a
       loadNextInstruction
     Pushval t n -> do
       a <- new $ VAL t n
-      push $ toInteger a
+      push a
       loadNextInstruction
     Pushparam n -> do
       s <- use stack
       let sa = V.length s - n - 2
       ha <- getStackElement sa
-      paramAddr <- add2arg $ fromInteger ha
-      push $ toInteger paramAddr
+      paramAddr <- add2arg ha
+      push paramAddr
       loadNextInstruction
     Makeapp -> do
       a1 <- pop
       a2 <- pop
-      a <- new $ APP (fromInteger a1) (fromInteger a2)
-      push $ toInteger a
+      a <- new $ APP a1 a2
+      push a
       loadNextInstruction
     Slide n -> do
       top <- pop
@@ -255,44 +255,44 @@ step = do
       loadNextInstruction
     Reduce -> do
       top <- pop
-      o <- getObject $ fromInteger top
+      o <- getObject top
       case o of
         (APP a1 _) -> do
           push top
-          push $ toInteger a1
+          push a1
         (DEF _ _ a) -> do
           push top
           pc <- use programcounter
           {- Here we don't need to push pc + 1 because pc already points to the next instruction as per the instruction cycle -}
-          push $ toInteger pc
+          push pc
           jumpTo a
         (VAL _ _) -> do
           returnAddr <- pop
           push top
-          jumpTo $ fromInteger returnAddr
+          jumpTo returnAddr
         _ -> throwError "Reduce: Malformed object detected!"
     Unwind -> do
       top <- pop
       push top
-      obj <- getObject $ fromInteger top
+      obj <- getObject top
       case obj of
-        (APP a1 _) -> push $ toInteger a1
+        (APP a1 _) -> push a1
         _ -> loadNextInstruction
     Call -> do
       top <- pop
       push top
-      obj <- getObject $ fromInteger top
+      obj <- getObject top
       case obj of
         (VAL _ _) -> loadNextInstruction
         (DEF _ _ a) -> do
           pc <- use programcounter
-          push $ toInteger pc
+          push pc
           jumpTo a
         {- binary operator-}
         (PRE op)
           | op `elem` [Equals, Smaller, Plus, Minus, Times, Divide, And, Or] -> do
               pc <- use programcounter
-              push $ toInteger pc
+              push pc
               {- push representation of operator onto stack -}
               push top
               {- this is nasty - but according to spec! -}
@@ -300,13 +300,13 @@ step = do
           {- ternary operator: if-}
           | op == FIf -> do
               pc <- use programcounter
-              push $ toInteger pc
+              push pc
               {- this is nasty - but according to spec! -}
               jumpTo 13
           {- unary operator: otherwise op == Not -}
           | otherwise -> do
               pc <- use programcounter
-              push $ toInteger pc
+              push pc
               {- push representation of operator onto stack -}
               push top
               jumpTo 19
@@ -315,10 +315,10 @@ step = do
       res <- pop
       returnAddr <- pop
       push res
-      jumpTo $ fromInteger returnAddr
+      jumpTo returnAddr
     Pushpre op -> do
       obj <- new $ PRE op
-      push $ toInteger obj
+      push obj
       loadNextInstruction
     Update arg -> do
       case arg of
@@ -332,7 +332,7 @@ step = do
           {- Adjust heap cell at old expression address
              Weirdly, this is missing in the spec but necessary to implement the (lazy) evaluation correctly
              It is mentioned briefly in the introduction of the new instructions for complete MF though -}
-          overrideObject (fromInteger oldExprAddr) (IND $ fromInteger newValAddr)
+          overrideObject oldExprAddr (IND newValAddr)
         Arity n -> do
           {- replace subexpression graph in heap by an indirection to the value it evaluates to
              this implements lazy evaluation since this indirection applies to every other expression that points to it -}
@@ -341,7 +341,7 @@ step = do
           push top
           let sa = V.length s - n - 3
           ha <- getStackElement sa
-          overrideObject (fromInteger ha) (IND $ fromInteger top)
+          overrideObject ha (IND top)
       loadNextInstruction
     Operator op -> case op of
       One -> do
@@ -349,17 +349,17 @@ step = do
         opAddr <- pop
         returnAddr <- pop
         _ <- pop
-        op' <- getObject $ fromInteger opAddr
+        op' <- getObject opAddr
         if op' /= PRE Not
           then throwError "Operator: Type error!"
           else do
             push returnAddr
             {- Logically negate the operand, create resulting VAL on the heap and push result address onto stack -}
-            operandObj <- getObject $ fromInteger operandAddr
+            operandObj <- getObject operandAddr
             case operandObj of
               (VAL FBool b) -> do
                 res <- new $ VAL FBool (boolToInteger $ not $ integerToBool b)
-                push $ toInteger res
+                push res
               _ -> throwError "Operator: Type error!"
         loadNextInstruction
       Two -> do
@@ -369,9 +369,9 @@ step = do
         returnAddr <- pop
         _ <- pop
         _ <- pop
-        opObj <- getObject $ fromInteger opAddr
-        operand1Obj <- getObject $ fromInteger operand1Addr
-        operand2Obj <- getObject $ fromInteger operand2Addr
+        opObj <- getObject opAddr
+        operand1Obj <- getObject operand1Addr
+        operand2Obj <- getObject operand2Addr
         resObj <- case (operand1Obj, operand2Obj, opObj) of
           (VAL FInteger op1, VAL FInteger op2, PRE Equals) -> return $ VAL FInteger $ boolToInteger $ op1 == op2
           (VAL FBool op1, VAL FBool op2, PRE Equals) -> return $ VAL FBool $ boolToInteger $ op1 == op2
@@ -388,7 +388,7 @@ step = do
 
         push returnAddr
         resAddr <- new resObj
-        push $ toInteger resAddr
+        push resAddr
 
         loadNextInstruction
       OpIf -> do
@@ -399,15 +399,15 @@ step = do
         trueBranchAddr <- pop
         falseBranchAddr <- pop
 
-        condObj <- getObject $ fromInteger condAddr
+        condObj <- getObject condAddr
         resAppAddr <- case condObj of
           (VAL FBool b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
           _ -> throwError "Operator: Type error"
-        resAddr <- add2arg $ fromInteger resAppAddr
+        resAddr <- add2arg resAppAddr
 
         {- Push elements to stack - the spec is wrong, so unsure what exactly is the right thing to do here (?) -}
         push returnAddr
-        push $ toInteger resAddr
+        push resAddr
 
         loadNextInstruction
     Halt -> do return ()
@@ -416,4 +416,4 @@ run :: Computation Object
 run = do
   whileM $ do step; isNotHalted
   a <- pop
-  getObject $ fromInteger a
+  getObject a

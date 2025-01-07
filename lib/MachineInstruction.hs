@@ -8,8 +8,6 @@ type HeapAddress = Int
 
 type StackAddress = Int
 
-type StackElement = Integer
-
 data FType = FInteger | FBool deriving (Eq, Show, Read)
 
 type Arity = Int
