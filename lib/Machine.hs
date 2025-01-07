@@ -92,7 +92,7 @@ getObject :: HeapAddress -> Computation Object
 getObject a = do
   h <- use heap
   case M.lookup a h of
-    Nothing -> throwDiagnosticError $ "heapGetObj: address " ++ show a ++ " out of range!"
+    Nothing -> throwError $ "heapGetObj: address " ++ show a ++ " out of range!"
     {- In this case we recurse until the last indirection is resolved - this will recurse indefinitely in case there is a loop in the graph! -}
     Just o -> case o of
       (IND h') -> getObject h'
@@ -110,10 +110,10 @@ jumpTo a = do
     then do
       iregister .= prog V.! a
       programcounter .= a + 1
-    else throwDiagnosticError "code address out of range"
+    else throwError "code address out of range"
 
-throwDiagnosticError :: String -> Computation a
-throwDiagnosticError e = do
+throwError :: String -> Computation a
+throwError e = do
   m <- lift get
   throwE $ e ++ "\n" ++ prettyPrintMachineState m
 
@@ -131,7 +131,7 @@ pop :: Computation StackElement
 pop = do
   s <- use stack
   case V.unsnoc s of
-    Nothing -> throwDiagnosticError "pop: stack is empty!"
+    Nothing -> throwError "pop: stack is empty!"
     Just (bottom, top) -> do
       stack .= bottom
       return top
@@ -145,7 +145,7 @@ address :: FunctionName -> Computation HeapAddress
 address f = do
   h <- use heap
   case lookupFunctionAddress f h of
-    Nothing -> throwDiagnosticError $ "address: no such function: " ++ f
+    Nothing -> throwError $ "address: no such function: " ++ f
     Just a -> return a
 
 lookupFunctionAddress :: FunctionName -> Heap -> Maybe HeapAddress
@@ -161,7 +161,7 @@ add2arg a = do
   o <- getObject a
   case o of
     APP _ a2 -> return a2
-    _ -> throwDiagnosticError $ "add2arg: no application found at " ++ show a
+    _ -> throwError $ "add2arg: no application found at " ++ show a
 
 new :: Object -> Computation HeapAddress
 new o = do
@@ -181,7 +181,7 @@ objType a = do
   o <- getObject a
   case o of
     VAL t _ -> return t
-    _ -> throwDiagnosticError $ "objType: object " ++ show o ++ " isn't of VAL type!"
+    _ -> throwError $ "objType: object " ++ show o ++ " isn't of VAL type!"
 
 getStackElement :: StackAddress -> Computation StackElement
 getStackElement sa = do
@@ -189,7 +189,7 @@ getStackElement sa = do
   if isIndexForVector sa s
     then do
       return $ fromInteger $ s V.! sa
-    else throwDiagnosticError "getStackElement: index out of range!"
+    else throwError "getStackElement: index out of range!"
 
 integerToBool :: Integer -> Bool
 integerToBool 0 = False
@@ -253,9 +253,7 @@ step = do
           stack .= V.take newLength s
           push sndtop
           push top
-        else throwDiagnosticError "Slide: can't slide so many elements, stack too small!"
-      pc <- use programcounter
-      jumpTo pc
+        else throwError "Slide: can't slide so many elements, stack too small!"
     Reduce -> do
       top <- pop
       o <- getObject $ fromInteger top
@@ -273,7 +271,7 @@ step = do
           returnAddr <- pop
           push top
           jumpTo $ fromInteger returnAddr
-        _ -> throwDiagnosticError "Reduce: Malformed object detected!"
+        _ -> throwError "Reduce: Malformed object detected!"
     Unwind -> do
       top <- pop
       push top
@@ -317,7 +315,7 @@ step = do
               {- push representation of operator onto stack -}
               push top
               jumpTo 19
-        _ -> throwDiagnosticError "Call: Malformed object detected!"
+        _ -> throwError "Call: Malformed object detected!"
     Return -> do
       res <- pop
       returnAddr <- pop
@@ -361,7 +359,7 @@ step = do
         _ <- pop
         op' <- getObject $ fromInteger opAddr
         if op' /= PRE Not
-          then throwDiagnosticError "Operator: Type error!"
+          then throwError "Operator: Type error!"
           else do
             push returnAddr
             {- Logically negate the operand, create resulting VAL on the heap and push result address onto stack -}
@@ -370,9 +368,7 @@ step = do
               (VAL FBool b) -> do
                 res <- new $ VAL FBool (boolToInteger $ not $ integerToBool b)
                 push $ toInteger res
-              _ -> throwDiagnosticError "Operator: Type error!"
-        pc <- use programcounter
-        jumpTo pc
+              _ -> throwError "Operator: Type error!"
       Two -> do
         operand1Addr <- pop
         operand2Addr <- pop
@@ -395,7 +391,7 @@ step = do
           (VAL FBool op1, VAL FBool op2, PRE And) -> return $ VAL FBool $ op1 * op2
           -- for Or, addition doesn't quite work, e.g. -1 + 1 = 0
           (VAL FBool op1, VAL FBool op2, PRE Or) -> return $ VAL FBool $ boolToInteger $ integerToBool op1 || integerToBool op2
-          _ -> throwDiagnosticError "Operator: Type error!"
+          _ -> throwError "Operator: Type error!"
 
         push returnAddr
         resAddr <- new resObj
@@ -414,7 +410,7 @@ step = do
         condObj <- getObject $ fromInteger condAddr
         resAppAddr <- case condObj of
           (VAL FBool b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
-          _ -> throwDiagnosticError "Operator: Type error"
+          _ -> throwError "Operator: Type error"
         resAddr <- add2arg $ fromInteger resAppAddr
 
         {- Push elements to stack - the spec is wrong, so unsure what exactly is the right thing to do here (?) -}
