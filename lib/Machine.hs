@@ -10,9 +10,9 @@ import Control.Monad.Extra (whileM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, get, runState)
-import Data.IntMap as M (IntMap, adjust, filter, insert, lookup, lookupMin, fromList)
-import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
+import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, lookupMin)
 import Data.List.Index as I (indexed)
+import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
 import MachineInstruction
   ( CodeAddress,
     FOperator (..),
