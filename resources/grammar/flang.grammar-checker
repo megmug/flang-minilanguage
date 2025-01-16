@@ -1,0 +1,77 @@
+/* Can be used as input for https://smlweb.cpsc.ucalgary.ca/start.html to check for some properties, including LL1 */
+/* Transformations applied from bnf form:
+ * - terminals written small alpha
+ * - non-alpha terminals replaced by descriptive alpha names
+ * - *, + and ? treated as part of nonterminal names, grammar checker doesnt support them
+ * - *, + and ? simulated by new nonterminals
+ * - -> instead of ::=
+ * - | for every alternative, . at the end of every production
+ */
+
+/* Naive, Type 2 but not LL1 without precedences */
+Program          -> Program' Program'' .
+Program'         -> Definition semicolon .
+Program''        -> Program' Program'' | .
+Definition       -> VariableName+ equals Expression .
+VariableName+    -> variableName VariableName* .
+VariableName*    -> variableName VariableName* | .
+LocalDefinitions -> LocalDefinition LocalDefinitions' .
+LocalDefinitions' -> semicolon LocalDefinition LocalDefinitions' | .
+LocalDefinition  -> variableName equals Expression .
+Expression       -> ( let LocalDefinitions in | if Expression then Expression else | UnaryOp ) Expression
+                   | openroundbracket Expression closingroundbracket
+                   | AtomicExpression
+                   | Expression BinaryOp? Expression .
+BinaryOp         -> ampersand | pipe | doubleequals | smaller | plus | minus | times | divide .
+BinaryOp?        -> BinaryOp | .
+UnaryOp          -> negation | minus .
+AtomicExpression -> variableName | number | boolean .
+
+/* LL1 with precedences */
+Program               -> Program'+ .
+Program'              -> Definition semicolon .
+Program'+             -> Program' Program'* .
+Program'*             -> Program' Program'* | .
+Definition            -> VariableName+ equals Expression .
+VariableName+         -> variableName VariableName* .
+VariableName*         -> variableName VariableName* | .
+LocalDefinitions      -> LocalDefinition LocalDefinitions'* .
+LocalDefinitions'     -> semicolon LocalDefinition .
+LocalDefinitions'*    -> LocalDefinitions' LocalDefinitions'* | .
+LocalDefinition       -> variableName equals Expression .
+Expression            -> DisjunctionExpression
+                       | Expression' Expression .
+Expression'           -> let LocalDefinitions in
+                       | if Expression then Expression else .
+DisjunctionExpression -> ConjunctionExpression DisjunctionExpression'* .
+DisjunctionExpression' -> pipe ConjunctionExpression .
+DisjunctionExpression'* -> DisjunctionExpression' DisjunctionExpression'* | .
+ConjunctionExpression -> NegationExpression ConjunctionExpression'* .
+ConjunctionExpression' -> ampersand NegationExpression .
+ConjunctionExpression'* -> ConjunctionExpression' ConjunctionExpression'* | .
+NegationExpression    -> Not' SmallerEqualsExpression .
+Not'   -> not | .
+SmallerEqualsExpression -> UnaryMinusExpression SmallerEqualsExpression'* .
+SmallerEqualsExpression' -> SmallerEqualsExpression'' UnaryMinusExpression .
+SmallerEqualsExpression'' -> smaller | doubleequals .
+SmallerEqualsExpression'* -> SmallerEqualsExpression' SmallerEqualsExpression'* | .
+UnaryMinusExpression  -> Minus' BinaryMinusExpression .
+Minus' -> minus | .
+BinaryMinusExpression -> AdditionExpression BinaryMinusExpression'* .
+BinaryMinusExpression' -> minus AdditionExpression .
+BinaryMinusExpression'* -> BinaryMinusExpression' BinaryMinusExpression'* | .
+AdditionExpression    -> DivisionExpression AdditionExpression'* .
+AdditionExpression'   -> plus DivisionExpression .
+AdditionExpression'*  -> AdditionExpression' AdditionExpression'* | .
+DivisionExpression    -> MultiplicationExpression DivisionExpression'* .
+DivisionExpression'   -> divide MultiplicationExpression .
+DivisionExpression'* -> DivisionExpression' DivisionExpression'* | .
+MultiplicationExpression -> ApplicationExpression MultiplicationExpression'* .
+MultiplicationExpression' -> times ApplicationExpression .
+MultiplicationExpression'* -> MultiplicationExpression' MultiplicationExpression'* | .
+ApplicationExpression -> BracketedExpression+ .
+BracketedExpression -> AtomicExpression
+                     | openroundbracket Expression closingroundbracket .
+BracketedExpression+ -> BracketedExpression BracketedExpression* .
+BracketedExpression* -> BracketedExpression BracketedExpression* | .
+AtomicExpression -> variableName | number | boolean .

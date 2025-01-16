@@ -1,0 +1,35 @@
+/* Can be used as input for "https://bottlecaps.de/rr/ui" to generate syntax graphs */
+
+/* Naive, Type 2 but not LL1 without precedences */
+Program          ::= (Definition ";")+
+Definition       ::= variableName+ "=" Expression
+LocalDefinitions ::= LocalDefinition (";" LocalDefinition)*
+LocalDefinition  ::= variableName "=" Expression
+Expression       ::= ( "let" LocalDefinitions "in" | "if" Expression "then" Expression "else" | UnaryOp ) Expression
+                   | "(" Expression ")"
+                   | AtomicExpression
+                   | Expression (BinaryOp)? Expression
+BinaryOp         ::= "&" | "|" | "==" | "<" | "+" | "-" | "*" | "/"
+UnaryOp          ::= "not" | "-"
+AtomicExpression ::= variableName | number | boolean
+
+/* LL1 with operator precedences */
+Program               ::= (Definition ";")+
+Definition            ::= variableName+ "=" Expression
+LocalDefinitions      ::= LocalDefinition (";" LocalDefinition)*
+LocalDefinition       ::= variableName "=" Expression
+Expression            ::= DisjunctionExpression
+                        | ( "let" LocalDefinitions "in" | "if" Expression "then" Expression "else" ) Expression
+DisjunctionExpression ::= ConjunctionExpression ("|" ConjunctionExpression)*
+ConjunctionExpression ::= NegationExpression ("&" NegationExpression)*
+NegationExpression    ::= ("not")? SmallerEqualsExpression
+SmallerEqualsExpression ::= UnaryMinusExpression (("<" | "==") UnaryMinusExpression)*
+UnaryMinusExpression  ::= ("-")? BinaryMinusExpression
+BinaryMinusExpression ::= AdditionExpression ("-" AdditionExpression)*
+AdditionExpression    ::= DivisionExpression ("+" DivisionExpression)*
+DivisionExpression    ::= MultiplicationExpression ("/" MultiplicationExpression)*
+MultiplicationExpression ::= ApplicationExpression ("*" ApplicationExpression)*
+ApplicationExpression ::= BracketedExpression+
+BracketedExpression ::= AtomicExpression
+                      | "(" Expression ")"
+AtomicExpression ::= variableName | number | boolean
