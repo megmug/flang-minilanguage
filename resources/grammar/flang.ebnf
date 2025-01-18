@@ -20,15 +20,15 @@ LocalDefinitions      ::= LocalDefinition (";" LocalDefinition)*
 LocalDefinition       ::= variableName "=" Expression
 Expression            ::= DisjunctionExpression
                         | ( "let" LocalDefinitions "in" | "if" Expression "then" Expression "else" ) Expression
-DisjunctionExpression ::= ConjunctionExpression ("|" ConjunctionExpression)*
-ConjunctionExpression ::= NegationExpression ("&" NegationExpression)*
+DisjunctionExpression ::= ConjunctionExpression ("|" DisjunctionExpression)?
+ConjunctionExpression ::= NegationExpression ("&" ConjunctionExpression)?
 NegationExpression    ::= ("not")? SmallerEqualsExpression
-SmallerEqualsExpression ::= UnaryMinusExpression (("<" | "==") UnaryMinusExpression)*
+SmallerEqualsExpression ::= UnaryMinusExpression (("<" | "==") SmallerEqualsExpression)?
 UnaryMinusExpression  ::= ("-")? BinaryMinusExpression
-BinaryMinusExpression ::= AdditionExpression ("-" AdditionExpression)*
-AdditionExpression    ::= DivisionExpression ("+" DivisionExpression)*
-DivisionExpression    ::= MultiplicationExpression ("/" MultiplicationExpression)*
-MultiplicationExpression ::= ApplicationExpression ("*" ApplicationExpression)*
+BinaryMinusExpression ::= AdditionExpression ("-" BinaryMinusExpression)?
+AdditionExpression    ::= DivisionExpression ("+" AdditionExpression)?
+DivisionExpression    ::= MultiplicationExpression ("/" DivisionExpression)?
+MultiplicationExpression ::= ApplicationExpression ("*" MultiplicationExpression)?
 ApplicationExpression ::= BracketedExpression+
 BracketedExpression ::= AtomicExpression
                       | "(" Expression ")"

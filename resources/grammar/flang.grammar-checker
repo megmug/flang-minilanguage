@@ -36,39 +36,31 @@ Definition            -> VariableName+ equals Expression .
 VariableName+         -> variableName VariableName* .
 VariableName*         -> variableName VariableName* | .
 LocalDefinitions      -> LocalDefinition LocalDefinitions'* .
-LocalDefinitions'     -> semicolon LocalDefinition .
-LocalDefinitions'*    -> LocalDefinitions' LocalDefinitions'* | .
+LocalDefinitions'*    -> semicolon LocalDefinition LocalDefinitions'* | .
 LocalDefinition       -> variableName equals Expression .
 Expression            -> DisjunctionExpression
                        | Expression' Expression .
 Expression'           -> let LocalDefinitions in
                        | if Expression then Expression else .
-DisjunctionExpression -> ConjunctionExpression DisjunctionExpression'* .
-DisjunctionExpression' -> pipe ConjunctionExpression .
-DisjunctionExpression'* -> DisjunctionExpression' DisjunctionExpression'* | .
-ConjunctionExpression -> NegationExpression ConjunctionExpression'* .
-ConjunctionExpression' -> ampersand NegationExpression .
-ConjunctionExpression'* -> ConjunctionExpression' ConjunctionExpression'* | .
-NegationExpression    -> Not' SmallerEqualsExpression .
-Not'   -> not | .
-SmallerEqualsExpression -> UnaryMinusExpression SmallerEqualsExpression'* .
-SmallerEqualsExpression' -> SmallerEqualsExpression'' UnaryMinusExpression .
-SmallerEqualsExpression'' -> smaller | doubleequals .
-SmallerEqualsExpression'* -> SmallerEqualsExpression' SmallerEqualsExpression'* | .
-UnaryMinusExpression  -> Minus' BinaryMinusExpression .
-Minus' -> minus | .
-BinaryMinusExpression -> AdditionExpression BinaryMinusExpression'* .
-BinaryMinusExpression' -> minus AdditionExpression .
-BinaryMinusExpression'* -> BinaryMinusExpression' BinaryMinusExpression'* | .
-AdditionExpression    -> DivisionExpression AdditionExpression'* .
-AdditionExpression'   -> plus DivisionExpression .
-AdditionExpression'*  -> AdditionExpression' AdditionExpression'* | .
-DivisionExpression    -> MultiplicationExpression DivisionExpression'* .
-DivisionExpression'   -> divide MultiplicationExpression .
-DivisionExpression'* -> DivisionExpression' DivisionExpression'* | .
-MultiplicationExpression -> ApplicationExpression MultiplicationExpression'* .
-MultiplicationExpression' -> times ApplicationExpression .
-MultiplicationExpression'* -> MultiplicationExpression' MultiplicationExpression'* | .
+DisjunctionExpression -> ConjunctionExpression DisjunctionExpression'? .
+DisjunctionExpression'? -> pipe DisjunctionExpression | .
+ConjunctionExpression -> NegationExpression ConjunctionExpression'? .
+ConjunctionExpression'? -> ampersand ConjunctionExpression | .
+NegationExpression    -> Not? SmallerEqualsExpression .
+Not?   -> not | .
+SmallerEqualsExpression -> UnaryMinusExpression SmallerEqualsExpression'? .
+SmallerEqualsExpression'? -> SmallerOrDoubleEquals SmallerEqualsExpression | .
+SmallerOrDoubleEquals -> smaller | doubleequals .
+UnaryMinusExpression  -> Minus? BinaryMinusExpression .
+Minus? -> minus | .
+BinaryMinusExpression -> AdditionExpression BinaryMinusExpression'? .
+BinaryMinusExpression'? -> minus BinaryMinusExpression | .
+AdditionExpression    -> DivisionExpression AdditionExpression'? .
+AdditionExpression'?  -> plus AdditionExpression | .
+DivisionExpression    -> MultiplicationExpression DivisionExpression'? .
+DivisionExpression'? -> divide DivisionExpression | .
+MultiplicationExpression -> ApplicationExpression MultiplicationExpression'? .
+MultiplicationExpression'? -> times MultiplicationExpression | .
 ApplicationExpression -> BracketedExpression+ .
 BracketedExpression -> AtomicExpression
                      | openroundbracket Expression closingroundbracket .
