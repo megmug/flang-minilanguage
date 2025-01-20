@@ -13,14 +13,14 @@ data Expression
   | Conjunction Expression Expression
   | LogicalNegation Expression
   | Smaller Expression Expression
-  | Greater Expression Expression
-  | Negated Expression
+  | Equality Expression Expression
+  | Minus Expression
   | Difference Expression Expression
   | Sum Expression Expression
   | Quotient Expression Expression
   | Product Expression Expression
   | Application Expression Expression
-  | VariableName VariableName
+  | Variable VariableName
   | Number Integer
   | Boolean Bool
 
