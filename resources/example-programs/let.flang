@@ -1,0 +1,2 @@
+f x = let y = x ; x = 5 in y;
+main = (f 1);

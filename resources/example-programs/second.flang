@@ -1,0 +1,2 @@
+main = second 1 2;
+second x y = y;

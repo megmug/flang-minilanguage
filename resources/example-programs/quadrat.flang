@@ -1,0 +1,2 @@
+main = quadrat (quadrat (2 * 3));
+quadrat x = x * x;
