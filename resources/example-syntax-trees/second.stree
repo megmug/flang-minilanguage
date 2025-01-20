@@ -1,0 +1,4 @@
+Program
+    [ Definition "main" [] (Application (Application (Variable "second") (Number 1)) (Number 2)),
+      Definition "second" ["x", "y"] (Variable "y")
+    ]

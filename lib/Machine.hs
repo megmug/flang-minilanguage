@@ -8,8 +8,8 @@ import Control.Lens (use, (.=))
 import Control.Lens.Operators ((+=))
 import Control.Monad.Extra (whileM)
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Except (ExceptT, throwE)
-import Control.Monad.Trans.State (State, get)
+import Control.Monad.Trans.Except (ExceptT, throwE, runExceptT)
+import Control.Monad.Trans.State (State, get, runState)
 import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, lookupMin)
 import Data.List.Index as I (indexed)
 import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
@@ -418,3 +418,13 @@ run = do
   whileM $ do step; isNotHalted
   a <- pop
   getObject a
+
+runProgram :: [Object] -> [Instruction] -> String
+runProgram h prog = case createMachineWithHeap h prog of
+  Nothing -> "Invalid machine code"
+  Just m -> case runState (runExceptT run) m of
+    (Left msg, _) -> msg
+    (Right (VAL t v), _) -> case t of
+      FInteger -> show v
+      FBool -> if v == 0 then "False" else "True"
+    (Right o, _) -> "Return value is malformed (" ++ show o ++ ")"

@@ -1,10 +1,10 @@
 module SyntaxTree where
 
-newtype Program = Program [Definition]
+newtype Program = Program [Definition] deriving (Eq, Read, Show)
 
-data Definition = Definition [VariableName] Expression
+data Definition = Definition VariableName [VariableName] Expression deriving (Eq, Read, Show)
 
-data LocalDefinition = LocalDefinition VariableName Expression
+data LocalDefinition = LocalDefinition VariableName Expression deriving (Eq, Read, Show)
 
 data Expression
   = Let [LocalDefinition] Expression
@@ -23,5 +23,6 @@ data Expression
   | Variable VariableName
   | Number Integer
   | Boolean Bool
+  deriving (Eq, Read, Show)
 
 type VariableName = String

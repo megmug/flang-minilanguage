@@ -39,3 +39,15 @@ executables:
     source-dirs: app
     dependencies:
     - flang
+
+  flang-compile:
+    main: flang-compile.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-run:
+    main: flang-run.hs
+    source-dirs: app
+    dependencies:
+    - flang
