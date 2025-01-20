@@ -1,7 +1,7 @@
+import Machine (Object, runProgram)
 import MachineInstruction (Instruction (..))
 import System.Environment (getArgs)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
-import Machine (runProgram, Object)
 
 main :: IO ()
 main = do

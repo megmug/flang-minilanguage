@@ -1,6 +1,6 @@
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.State (runState)
-import Machine (Object, Machine (..), createMachineWithHeap, isNotHalted, prettyPrintMachineState, step)
+import Machine (Machine (..), Object, createMachineWithHeap, isNotHalted, prettyPrintMachineState, step)
 import MachineInstruction (Instruction (..))
 import System.Environment (getArgs)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)

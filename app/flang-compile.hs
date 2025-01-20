@@ -1,7 +1,7 @@
+import CodeGenerator (Generatable (generate))
+import SyntaxTree (Program)
 import System.Environment (getArgs)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
-import SyntaxTree (Program)
-import CodeGenerator (Generatable(generate))
 
 {- For now, this is compiling straight from syntax trees until we have a parser -}
 main :: IO ()
