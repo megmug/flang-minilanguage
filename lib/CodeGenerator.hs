@@ -72,10 +72,35 @@ class Generatable a where
 instance Generatable Program where
   generator (Program defs) = do
     code
+      -- main program entry point
       .= [ Reset,
            Pushfun "main",
-           Reduce,
-           Halt
+           Call,
+           Halt,
+           -- subroutine for binary operators
+           Pushparam 2,
+           Unwind,
+           Call,
+           Pushparam 4,
+           Unwind,
+           Call,
+           Operator Two,
+           Update PredefinedOperator,
+           Return,
+           -- subroutine for if-then-else operator
+           Pushparam 2,
+           Unwind,
+           Call,
+           Operator OpIf,
+           Update PredefinedOperator,
+           Return,
+           -- subroutine for unary operator
+           Pushparam 2,
+           Unwind,
+           Call,
+           Operator One,
+           Update PredefinedOperator,
+           Return
          ]
     traverse_ generator defs
 
@@ -91,7 +116,7 @@ instance Generatable Definition where
     -- generate defining expression
     generator e
     -- append suffix for cleanup (at runtime) and returning
-    code %= (++ [Slide (n + 1), Reduce, Return])
+    code %= (++ [Update (Arity n), Slide (n + 1), Unwind, Call, Return])
     -- reset posList (compile-time cleanup)
     posList .= []
 
@@ -100,22 +125,85 @@ instance Generatable LocalDefinition where
 
 instance Generatable Expression where
   generator (Let _ _) = throwError "let-expressions unsupported" -- TODO
-  generator (IfThenElse _ _ _) = throwError "if-then-else unsupported" -- TODO
-  generator (Disjunction _ _) = throwError "logical disjunction unsupported" -- TODO
-  generator (Conjunction _ _) = throwError "logical conjunction unsupported" -- TODO
-  generator (LogicalNegation _) = throwError "logical negation unsupported" -- TODO
-  generator (SyntaxTree.Smaller _ _) = throwError "lt-expressions unsupported" -- TODO
-  generator (Equality _ _) = throwError "equality expressions unsupported" -- TODO
-  generator (SyntaxTree.Minus _) = throwError "minus expressions unsupported" -- TODO
-  generator (Difference _ _) = throwError "difference expressions unsupported" -- TODO
-  generator (Sum _ _) = throwError "sum expressions unsupported" -- TODO
-  generator (Quotient _ _) = throwError "quotient expressions unsupported" -- TODO
-  generator (Product _ _) = throwError "product expressions unsupported" -- TODO
+  generator (IfThenElse e1 e2 e3) = do
+    generator e3
+    posList %= posPlus 1
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre FIf, Makeapp, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-2)
+  -- NOTE: the disjunction or conjunction rule can be optimized by leveraging de-morgan-rule in syntax tree
+  generator (Disjunction e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre Or, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
+  generator (Conjunction e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre And, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
+  generator (LogicalNegation e) = do
+    generator e
+    code %= (++ [Pushpre Not, Makeapp])
+  generator (SyntaxTree.Smaller e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre MachineInstruction.Smaller, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
+  generator (Equality e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre Equals, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
+  -- NOTE: the difference operation can be replaced by sum + minus in syntax tree. In this case, we need to implement the unary - differently
+  generator (SyntaxTree.Minus e) = generator (Difference (Number 0) e)
+  generator (Difference e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre MachineInstruction.Minus, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
+  generator (Sum e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre Plus, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
+  generator (Quotient e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre Divide, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
+  generator (Product e1 e2) = do
+    generator e2
+    posList %= posPlus 1
+    generator e1
+    code %= (++ [Pushpre Times, Makeapp, Makeapp])
+    -- cleanup - see Application rule
+    posList %= posPlus (-1)
   generator (Application e1 e2) = do
     generator e2
     posList %= posPlus 1
     generator e1
     code %= (++ [Makeapp])
+    {- reset the posList again
+       this is necessary because in the script, the posList management is defined recursively, but we carry the state until after the recursive invocation -}
+    posList %= posPlus (-1)
   generator (Variable v) = do
     positions <- use posList
     case lookupPos v positions of
