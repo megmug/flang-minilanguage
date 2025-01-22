@@ -1,0 +1,4 @@
+Program [
+    Definition "main" [] (Application (Variable "quadrat") (Application (Variable "quadrat") (Product (Number 3) (Number 1)))),
+    Definition "quadrat" ["x"] (Product (Variable "x") (Variable "x"))
+]
