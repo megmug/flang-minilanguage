@@ -9,7 +9,7 @@ import Control.Lens.Operators ((%=), (.=))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
-import Data.Foldable (traverse_)
+import Data.List (delete)
 import Data.List.Index (indexed)
 import Machine (Object (DEF), boolToInteger)
 import MachineInstruction
@@ -21,28 +21,38 @@ import SyntaxTree
     - the code that was already generated, maintained as a simple list
     - a heap environment that is used to store the generated DEF function definitions that the machine requires for operation
  -}
-data GenState = GenState PosList Code HeapEnvironment
+data GenState = GenState PosList Code HeapEnvironment AccumulatedFunctionDefinitions GlobalFunctionList
 
 type PrefixLength = Int
 
-type PosList = [(Int, String)]
+type PosList = [(Int, VariableName)]
 
 type Code = [Instruction]
 
 type HeapEnvironment = [Object]
+
+type AccumulatedFunctionDefinitions = [Definition]
+
+type GlobalFunctionList = [(VariableName, Arity)]
 
 -- Here we define a type for monadic actions that represent the types of our code generators
 type Generator a = ExceptT String (State GenState) a
 
 {- Lens definitions for GenState -}
 posList :: (Functor f) => (PosList -> f PosList) -> GenState -> f GenState
-posList f (GenState pos c h) = (\pos' -> GenState pos' c h) <$> f pos
+posList f (GenState pos c h acc funcs) = (\pos' -> GenState pos' c h acc funcs) <$> f pos
 
 code :: (Functor f) => (Code -> f Code) -> GenState -> f GenState
-code f (GenState pos c h) = (\code' -> GenState pos code' h) <$> f c
+code f (GenState pos c h acc funcs) = (\code' -> GenState pos code' h acc funcs) <$> f c
 
 heapEnv :: (Functor f) => (HeapEnvironment -> f HeapEnvironment) -> GenState -> f GenState
-heapEnv f (GenState pos c h) = (\h' -> GenState pos c h') <$> f h
+heapEnv f (GenState pos c h acc funcs) = (\h' -> GenState pos c h' acc funcs) <$> f h
+
+accDefinitions :: (Functor f) => (AccumulatedFunctionDefinitions -> f AccumulatedFunctionDefinitions) -> GenState -> f GenState
+accDefinitions f (GenState pos c h acc funcs) = (\acc' -> GenState pos c h acc' funcs) <$> f acc
+
+globalFuncs :: (Functor f) => (GlobalFunctionList -> f GlobalFunctionList) -> GenState -> f GenState
+globalFuncs f (GenState pos c h acc funcs) = (\funcs' -> GenState pos c h acc funcs') <$> f funcs
 
 {- -}
 
@@ -58,12 +68,12 @@ class Generatable a where
     where
       generateAndReturn = do
         generator e
-        (GenState _ c h) <- lift get
+        (GenState _ c h _ _) <- lift get
         return (h, c)
 
   -- This runs a generator with some default empty state (mostly useful for whole programs)
   generate :: a -> Either String (HeapEnvironment, Code)
-  generate e = customGenerate e $ GenState [] [] []
+  generate e = customGenerate e $ GenState [] [] [] [] []
 
 {--}
 
@@ -102,15 +112,19 @@ instance Generatable Program where
            Update PredefinedOperator,
            Return
          ]
-    traverse_ generator defs
+    -- to understand why we need to generate function defs iteratively, see generateDefs
+    accDefinitions .= defs
+    generateDefs
 
 instance Generatable Definition where
-  generator (Definition f params e) = do
+  generator def@(Definition f params e) = do
     c <- use code
     let addr = length c
     let n = length params
     -- add new function DEF to heap environment
     heapEnv %= (++ [DEF f n addr])
+    -- add new function to global environment
+    globalFuncs %= (++ [(f, length params)])
     -- add params to posList
     posList .= paramsToPosList params
     -- generate defining expression
@@ -119,12 +133,32 @@ instance Generatable Definition where
     code %= (++ [Update (Arity n), Slide (n + 1), Unwind, Call, Return])
     -- reset posList (compile-time cleanup)
     posList .= []
-
-instance Generatable LocalDefinition where
-  generator (LocalDefinition _ _) = throwError "local definitions unsupported" -- TODO
+    -- remove function def from accumulated definitions to avoid generating it again (necessary because of iterative generation of function defs, see generateDefs)
+    accDefinitions %= delete def
 
 instance Generatable Expression where
-  generator (Let _ _) = throwError "let-expressions unsupported" -- TODO
+  generator (Let [] e) = generator e
+  generator (Let (def@(LocalDefinition v e) : defs) e') = do
+    if def `isIndependentFrom` defs
+      then do
+        gFuncs <- use globalFuncs
+        let gFuncNames = map fst gFuncs
+        let freeVarsInDef = delete v $ freeVariables e
+        let calculateNewGlobalFuncName x = if x `elem` (gFuncNames ++ boundVariables (Let (def:defs) e') ++ freeVariables (Let (def:defs) e')) then calculateNewGlobalFuncName $ x ++ "'" else v
+        let v' = calculateNewGlobalFuncName v
+        let calculateReplacingApp [] = Variable v'; calculateReplacingApp (x:xs) = Application (calculateReplacingApp xs) (Variable x)
+        let replacingApp = calculateReplacingApp (reverse freeVarsInDef)
+        let newFuncDef = Definition v' freeVarsInDef (substitute v replacingApp e)
+        let newGlobalFuncEntry = (v', length freeVarsInDef)
+        accDefinitions %= (++ [newFuncDef])
+        globalFuncs %= (++ [newGlobalFuncEntry])
+        let substitutedDefs = substituteDefs defs v replacingApp
+        let substitutedE' = substitute v replacingApp e'
+        generator $ Let substitutedDefs substitutedE'
+      else do
+        -- if first def is dependent on other defs, just cycle through until an independent one is found
+        -- in case of recursive definitions, this will loop forever, but those are unsupported
+        generator (Let (defs ++ [def]) e)
   generator (IfThenElse e1 e2 e3) = do
     generator e3
     posList %= posPlus 1
@@ -219,6 +253,18 @@ instance Generatable Expression where
 {--}
 
 {- Helper functions and generators -}
+
+-- Iteratively generate global function definitions
+-- We need to do this because a function definition can arbitrarily yield more definitions in the form of local let definitions - so we iterate until the accumulated definitions are empty
+generateDefs :: Generator ()
+generateDefs = do
+  acc <- use accDefinitions
+  case acc of
+    [] -> return ()
+    def:_ -> do
+      generator def
+      generateDefs
+
 throwError :: String -> Generator ()
 throwError s = throwE $ "Error during code generation: " ++ s
 
