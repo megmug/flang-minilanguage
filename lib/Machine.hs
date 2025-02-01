@@ -374,9 +374,9 @@ step = do
         operand1Obj <- getObject operand1Addr
         operand2Obj <- getObject operand2Addr
         resObj <- case (operand1Obj, operand2Obj, opObj) of
-          (VAL FInteger op1, VAL FInteger op2, PRE Equals) -> return $ VAL FInteger $ boolToInteger $ op1 == op2
+          (VAL FInteger op1, VAL FInteger op2, PRE Equals) -> return $ VAL FBool $ boolToInteger $ op1 == op2
           (VAL FBool op1, VAL FBool op2, PRE Equals) -> return $ VAL FBool $ boolToInteger $ op1 == op2
-          (VAL FInteger op1, VAL FInteger op2, PRE Smaller) -> return $ VAL FInteger $ boolToInteger $ op1 < op2
+          (VAL FInteger op1, VAL FInteger op2, PRE Smaller) -> return $ VAL FBool $ boolToInteger $ op1 < op2
           (VAL FInteger op1, VAL FInteger op2, PRE Plus) -> return $ VAL FInteger $ op1 + op2
           (VAL FInteger op1, VAL FInteger op2, PRE Minus) -> return $ VAL FInteger $ op1 - op2
           (VAL FInteger op1, VAL FInteger op2, PRE Times) -> return $ VAL FInteger $ op1 * op2
@@ -399,11 +399,11 @@ step = do
         _ <- pop
         trueBranchAddr <- pop
         falseBranchAddr <- pop
-
+        -- TODO: BUG here: we need to evaluate the condObj first
         condObj <- getObject condAddr
         resAppAddr <- case condObj of
           (VAL FBool b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
-          _ -> throwError "Operator: Type error"
+          otherObj -> throwError $ "Operator: non-boolean value in if-condition: " ++ show otherObj
         resAddr <- add2arg resAppAddr
 
         {- Push elements to stack - the spec is wrong, so unsure what exactly is the right thing to do here (?) -}
