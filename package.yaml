@@ -28,6 +28,12 @@ executables:
     dependencies:
     - flang
 
+  flang-parse:
+    main:        flang-parse.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
   flang-run-vmcode:
     main:        flang-run-vmcode.hs
     source-dirs: app

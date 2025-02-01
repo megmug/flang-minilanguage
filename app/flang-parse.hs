@@ -1,4 +1,3 @@
-import CodeGenerator (Generatable (generate))
 import Parser (ParseResult, parse)
 import SyntaxTree (Program)
 import System.Environment (getArgs)
@@ -14,6 +13,4 @@ main = do
     Left e -> putStrLn $ "Lexical error: " ++ show e
     Right ts -> case parse ts :: ParseResult Program of
       Left e -> putStrLn $ "Parse error: " ++ show e
-      Right ast -> case generate ast of
-        Left s -> putStrLn s
-        Right pr -> print pr
+      Right ast -> print ast
