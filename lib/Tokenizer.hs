@@ -39,6 +39,7 @@ reservedSymbolsAndWords :: [UnitTokenizer]
 reservedSymbolsAndWords =
   getUnitTokenizers
     [ (";", Semicolon),
+      ("==", (:==)), -- this needs to be placed before "=" to ensure that it gets tried first, otherwise it will never match
       ("=", (:=)),
       ("let", Let),
       ("in", In),
@@ -47,7 +48,6 @@ reservedSymbolsAndWords =
       ("else", Else),
       ("&", (:&)),
       ("|", (:|)),
-      ("==", (:==)),
       ("<", (:<)),
       ("+", (:+)),
       ("-", (:-)),
