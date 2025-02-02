@@ -1,7 +1,7 @@
 import MainLib (flangRun)
 
 isDebugMode :: Bool
-isDebugMode = False
+isDebugMode = True
 
 main :: IO ()
 main = flangRun isDebugMode

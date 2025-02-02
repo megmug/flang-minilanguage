@@ -28,8 +28,44 @@ executables:
     dependencies:
     - flang
 
+  flang-tokenize-debug:
+    main: flang-tokenize-debug.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
   flang-parse:
     main: flang-parse.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-parse-debug:
+    main: flang-parse-debug.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-compile:
+    main: flang-compile.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-compile-debug:
+    main: flang-compile-debug.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-run:
+    main: flang-run.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-run-debug:
+    main: flang-run-debug.hs
     source-dirs: app
     dependencies:
     - flang
@@ -42,18 +78,6 @@ executables:
 
   flang-run-vmcode-debug:
     main: flang-run-vmcode-debug.hs
-    source-dirs: app
-    dependencies:
-    - flang
-
-  flang-compile:
-    main: flang-compile.hs
-    source-dirs: app
-    dependencies:
-    - flang
-
-  flang-run:
-    main: flang-run.hs
     source-dirs: app
     dependencies:
     - flang

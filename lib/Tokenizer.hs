@@ -1,5 +1,6 @@
 module Tokenizer where
 
+import Control.Monad (when)
 import Text.Parsec
   ( ParseError,
     Parsec,
@@ -91,3 +92,17 @@ tokenizer = do
 
 tokenize :: String -> Either ParseError [TokenPos]
 tokenize = Text.Parsec.parse tokenizer "input"
+
+-- this is a helper IO action for sharing code in the different main executables
+-- it reads a file and tokenizes the input string, printing debugging information if needed
+tokenizeFile :: Bool -> String -> IO [TokenPos]
+tokenizeFile isDebugMode path = do
+  input <- readFile path
+  case tokenize input of
+    Left e -> do
+      fail $ "Lexical error: " ++ show e
+    Right ts -> do
+      when isDebugMode $ do
+        putStrLn "Successfully tokenized program:"
+        print (map fst ts)
+      return ts

@@ -1,7 +1,7 @@
 import MainLib (flangParseAndPrint)
 
 isDebugMode :: Bool
-isDebugMode = False
+isDebugMode = True
 
 main :: IO ()
 main = flangParseAndPrint isDebugMode

@@ -6,10 +6,12 @@ module Machine where
 
 import Control.Lens (use, (.=))
 import Control.Lens.Operators ((+=))
+import Control.Monad (when)
 import Control.Monad.Extra (whileM)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
-import Control.Monad.Trans.State (State, get, runState)
+import Control.Monad.Trans.State (StateT, get, runStateT)
 import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, lookupMin)
 import Data.List.Index as I (indexed)
 import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
@@ -61,7 +63,8 @@ data Object
 
 -- A computation is a monadic action featuring a Machine state and a possible string exception
 -- The result is some object of type a
-type Computation a = ExceptT String (State Machine) a
+-- type Computation a = ExceptT String (State Machine) a
+type Computation m a = ExceptT String (StateT Machine m) a
 
 {--}
 
@@ -90,7 +93,7 @@ heap f (Machine c s i pc o h) = (\h' -> Machine c s i pc o h') <$> f h
 prettyPrintMachineState :: Machine -> String
 prettyPrintMachineState (Machine _ s ir pc oc h) = "Stack: " ++ show s ++ "\nInstruction register: " ++ show ir ++ "\nProgram counter: " ++ show pc ++ "\nObject counter: " ++ show oc ++ "\nHeap: " ++ show h
 
-getObject :: HeapAddress -> Computation Object
+getObject :: (Monad m) => HeapAddress -> Computation m Object
 getObject a = do
   h <- use heap
   case M.lookup a h of
@@ -100,12 +103,12 @@ getObject a = do
       (IND h') -> getObject h'
       _ -> return o
 
-push :: StackElement -> Computation ()
+push :: (Monad m) => StackElement -> Computation m ()
 push n = do
   s <- use stack
   stack .= V.snoc s n
 
-jumpTo :: CodeAddress -> Computation ()
+jumpTo :: (Monad m) => CodeAddress -> Computation m ()
 jumpTo a = do
   prog <- use code
   if isIndexForVector a prog
@@ -114,12 +117,12 @@ jumpTo a = do
       pcounter .= a + 1
     else throwError "code address out of range"
 
-loadNextInstruction :: Computation ()
+loadNextInstruction :: (Monad m) => Computation m ()
 loadNextInstruction = do
   pc <- use pcounter
   jumpTo pc
 
-throwError :: String -> Computation a
+throwError :: (Monad m) => String -> Computation m a
 throwError e = do
   m <- lift get
   throwE $ e ++ "\n" ++ prettyPrintMachineState m
@@ -134,7 +137,7 @@ createMachineWithHeap os (c : cs) = Just $ Machine (V.fromList (c : cs)) (V.from
 isIndexForVector :: Int -> V.Vector a -> Bool
 isIndexForVector i v = 0 <= i && i < V.length v
 
-pop :: Computation StackElement
+pop :: (Monad m) => Computation m StackElement
 pop = do
   s <- use stack
   case V.unsnoc s of
@@ -143,12 +146,12 @@ pop = do
       stack .= bottom
       return top
 
-isNotHalted :: Computation Bool
+isNotHalted :: (Monad m) => Computation m Bool
 isNotHalted = do
   i <- use iregister
   return (i /= Halt)
 
-address :: FunctionName -> Computation HeapAddress
+address :: (Monad m) => FunctionName -> Computation m HeapAddress
 address f = do
   h <- use heap
   case lookupFunctionAddress f h of
@@ -163,14 +166,14 @@ lookupFunctionAddress f h = case M.lookupMin $ M.filter isFunction h of
     isFunction (DEF f' _ _) = f' == f
     isFunction _ = False
 
-add2arg :: HeapAddress -> Computation HeapAddress
+add2arg :: (Monad m) => HeapAddress -> Computation m HeapAddress
 add2arg a = do
   o <- getObject a
   case o of
     APP _ a2 -> return a2
     _ -> throwError $ "add2arg: no application found at " ++ show a
 
-new :: Object -> Computation HeapAddress
+new :: (Monad m) => Object -> Computation m HeapAddress
 new o = do
   h <- use heap
   ocount <- use ocounter
@@ -178,19 +181,19 @@ new o = do
   ocounter += 1
   return ocount
 
-overrideObject :: HeapAddress -> Object -> Computation ()
+overrideObject :: (Monad m) => HeapAddress -> Object -> Computation m ()
 overrideObject ha newObject = do
   h <- use heap
   heap .= M.adjust (const newObject) ha h
 
-objType :: HeapAddress -> Computation FType
+objType :: (Monad m) => HeapAddress -> Computation m FType
 objType a = do
   o <- getObject a
   case o of
     VAL t _ -> return t
     _ -> throwError $ "objType: object " ++ show o ++ " isn't of VAL type!"
 
-getStackElement :: StackAddress -> Computation StackElement
+getStackElement :: (Monad m) => StackAddress -> Computation m StackElement
 getStackElement sa = do
   s <- use stack
   if isIndexForVector sa s
@@ -210,7 +213,7 @@ boolToInteger True = 1
 {- Core computations: step and run
  - This is independent from a concrete computational context like IO to keep things modular
  -}
-step :: Computation ()
+step :: (Monad m) => Computation m ()
 step = do
   currentInstruction <- use iregister
   case currentInstruction of
@@ -399,7 +402,7 @@ step = do
         _ <- pop
         trueBranchAddr <- pop
         falseBranchAddr <- pop
-        -- TODO: BUG here: we need to evaluate the condObj first
+        -- here we assume that the condObj is already evaluated, since it Operator OpIf is preceded by "Unwind, Call"
         condObj <- getObject condAddr
         resAppAddr <- case condObj of
           (VAL FBool b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
@@ -413,18 +416,32 @@ step = do
         loadNextInstruction
     Halt -> do return ()
 
-run :: Computation Object
+run :: (Monad m) => Computation m Object
 run = do
   whileM $ do step; isNotHalted
   a <- pop
   getObject a
 
-runProgram :: [Object] -> [Instruction] -> String
-runProgram h prog = case createMachineWithHeap h prog of
-  Nothing -> "Invalid machine code"
-  Just m -> case runState (runExceptT run) m of
-    (Left msg, _) -> msg
-    (Right (VAL t v), _) -> case t of
-      FInteger -> show v
-      FBool -> if v == 0 then "False" else "True"
-    (Right o, _) -> "Return value is malformed (" ++ show o ++ ")"
+runIO :: Bool -> Computation IO Object
+runIO isDebugMode = do
+  whileM $ do
+    step
+    when isDebugMode $ do
+      m <- lift get
+      liftIO $ putStrLn ""
+      liftIO $ putStrLn $ "Machine state:\n" ++ prettyPrintMachineState m ++ "\n"
+    isNotHalted
+  a <- pop
+  getObject a
+
+runProgramIO :: Bool -> [Object] -> [Instruction] -> IO ()
+runProgramIO isDebugMode h prog = case createMachineWithHeap h prog of
+  Nothing -> putStrLn "Error running program: Invalid machine code!"
+  Just m -> do
+    res <- runStateT (runExceptT (runIO isDebugMode)) m
+    case res of
+      (Left s, _) -> putStr $ "Error running program: " ++ s
+      (Right (VAL t v), _) -> case t of
+        FInteger -> print v
+        FBool -> putStr $ if v == 0 then "False" else "True"
+      (Right o, _) -> putStr $ "Return value is malformed (" ++ show o ++ ")"

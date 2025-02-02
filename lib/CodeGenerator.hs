@@ -6,6 +6,7 @@ module CodeGenerator where
 
 import Control.Lens (use)
 import Control.Lens.Operators ((%=), (.=))
+import Control.Monad (when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
@@ -144,9 +145,9 @@ instance Generatable Expression where
         gFuncs <- use globalFuncs
         let gFuncNames = map fst gFuncs
         let freeVarsInDef = delete v $ freeVariables e
-        let calculateNewGlobalFuncName x = if x `elem` (gFuncNames ++ boundVariables (Let (def:defs) e') ++ freeVariables (Let (def:defs) e')) then calculateNewGlobalFuncName $ x ++ "'" else v
+        let calculateNewGlobalFuncName x = if x `elem` (gFuncNames ++ boundVariables (Let (def : defs) e') ++ freeVariables (Let (def : defs) e')) then calculateNewGlobalFuncName $ x ++ "'" else v
         let v' = calculateNewGlobalFuncName v
-        let calculateReplacingApp [] = Variable v'; calculateReplacingApp (x:xs) = Application (calculateReplacingApp xs) (Variable x)
+        let calculateReplacingApp [] = Variable v'; calculateReplacingApp (x : xs) = Application (calculateReplacingApp xs) (Variable x)
         let replacingApp = calculateReplacingApp (reverse freeVarsInDef)
         let newFuncDef = Definition v' freeVarsInDef (substitute v replacingApp e)
         let newGlobalFuncEntry = (v', length freeVarsInDef)
@@ -261,7 +262,7 @@ generateDefs = do
   acc <- use accDefinitions
   case acc of
     [] -> return ()
-    def:_ -> do
+    def : _ -> do
       generator def
       generateDefs
 
@@ -277,5 +278,21 @@ posPlus i = map (\(ind, a) -> (ind + i, a))
 lookupPos :: (Eq a) => a -> [(Int, a)] -> Maybe Int
 lookupPos _ [] = Nothing
 lookupPos y ((i, x) : xs) = if x == y then Just i else lookupPos y xs
+
+-- This is a helper IO action to share code in the different main executables
+-- it generates code for a given program syntax tree, optionally outputting debugging information
+generateProgram :: Bool -> Program -> IO (HeapEnvironment, Code)
+generateProgram isDebugMode ast = do
+  case generate ast of
+    Left err -> fail err
+    Right (heap, prog) -> do
+      when isDebugMode $ do
+        putStrLn ""
+        putStrLn "Successfully compiled program:"
+        putStrLn "Heap environment:"
+        print heap
+        putStrLn "Code:"
+        print prog
+      return (heap, prog)
 
 {--}
