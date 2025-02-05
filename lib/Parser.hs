@@ -3,7 +3,6 @@
 {-# HLINT ignore "Use lambda-case" #-}
 module Parser where
 
-import Control.Monad (when)
 import Data.List.NonEmpty (NonEmpty ((:|)), init, last)
 import SyntaxTree
   ( Definition (..),
@@ -197,16 +196,3 @@ acceptBoolean = tokenPrim show advance (\t -> case t of (Token.Boolean b, _) -> 
 
 satisfy :: (Token -> Bool) -> Parser Token
 satisfy p = tokenPrim show advance (\(t, _) -> if p t then Just t else Nothing)
-
--- this is a helper IO action to share code in the different main executables
--- it parses TokenPos streams into SyntaxTrees, outputting debugging information if requested
-parseTokens :: Bool -> [TokenPos] -> IO Program
-parseTokens isDebugMode ts = do
-  case Parser.parse ts of
-    Left e -> fail $ "Parse error: " ++ show e
-    Right ast -> do
-      when isDebugMode $ do
-        putStrLn ""
-        putStrLn "Successfully parsed tokens:"
-        print ast
-      return ast

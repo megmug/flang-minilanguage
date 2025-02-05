@@ -6,7 +6,6 @@ module CodeGenerator where
 
 import Control.Lens (use)
 import Control.Lens.Operators ((%=), (.=))
-import Control.Monad (when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
@@ -321,21 +320,5 @@ posPlus i = map (\(ind, a) -> (ind + i, a))
 lookupPos :: (Eq a) => a -> [(Int, a)] -> Maybe Int
 lookupPos _ [] = Nothing
 lookupPos y ((i, x) : xs) = if x == y then Just i else lookupPos y xs
-
--- This is a helper IO action to share code in the different main executables
--- it generates code for a given program syntax tree, optionally outputting debugging information
-generateProgram :: Bool -> Program -> IO (HeapEnvironment, Code)
-generateProgram isDebugMode ast = do
-  case generate ast of
-    Left err -> fail err
-    Right (heap, prog) -> do
-      when isDebugMode $ do
-        putStrLn ""
-        putStrLn "Successfully compiled program:"
-        putStrLn "Heap environment:"
-        print heap
-        putStrLn "Code:"
-        print prog
-      return (heap, prog)
 
 {--}

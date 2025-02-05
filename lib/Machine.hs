@@ -6,12 +6,10 @@ module Machine where
 
 import Control.Lens (use, (.=))
 import Control.Lens.Operators ((+=))
-import Control.Monad (when)
 import Control.Monad.Extra (whileM)
-import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
-import Control.Monad.Trans.State (StateT, get, runStateT)
+import Control.Monad.Trans.Except (ExceptT, throwE)
+import Control.Monad.Trans.State (StateT, get)
 import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, lookupMin)
 import Data.List.Index as I (indexed)
 import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
@@ -421,27 +419,3 @@ run = do
   whileM $ do step; isNotHalted
   a <- pop
   getObject a
-
-runIO :: Bool -> Computation IO Object
-runIO isDebugMode = do
-  whileM $ do
-    step
-    when isDebugMode $ do
-      m <- lift get
-      liftIO $ putStrLn ""
-      liftIO $ putStrLn $ "Machine state:\n" ++ prettyPrintMachineState m ++ "\n"
-    isNotHalted
-  a <- pop
-  getObject a
-
-runProgramIO :: Bool -> [Object] -> [Instruction] -> IO ()
-runProgramIO isDebugMode h prog = case createMachineWithHeap h prog of
-  Nothing -> putStrLn "Error running program: Invalid machine code!"
-  Just m -> do
-    res <- runStateT (runExceptT (runIO isDebugMode)) m
-    case res of
-      (Left s, _) -> putStr $ "Error running program: " ++ s
-      (Right (VAL t v), _) -> case t of
-        FInteger -> print v
-        FBool -> putStr $ if v == 0 then "False" else "True"
-      (Right o, _) -> putStr $ "Return value is malformed (" ++ show o ++ ")"
