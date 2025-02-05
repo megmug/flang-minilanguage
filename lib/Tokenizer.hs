@@ -1,6 +1,7 @@
 module Tokenizer where
 
 import Control.Monad (when)
+import Data.Either (fromRight)
 import Text.Parsec
   ( ParseError,
     Parsec,
@@ -106,3 +107,8 @@ tokenizeFile isDebugMode path = do
         putStrLn "Successfully tokenized program:"
         print (map fst ts)
       return ts
+
+-- This is a helper function to ease readable test implementation
+-- ONLY used in test context
+unsafeTokenize :: String -> [TokenPos]
+unsafeTokenize = fromRight [] . tokenize

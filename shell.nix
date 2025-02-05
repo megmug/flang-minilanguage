@@ -8,6 +8,7 @@ pkgs.mkShell {
     buildInputs = [
         pkgs.ghc
 	    pkgs.haskellPackages.haskell-language-server
+        pkgs.haskellPackages.hspec-discover
 	    pkgs.stack
     ];
 }

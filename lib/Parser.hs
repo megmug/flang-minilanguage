@@ -39,6 +39,7 @@ import Text.Parsec.Prim
     (<|>),
   )
 import Token (Token (..), TokenPos)
+import Tokenizer (unsafeTokenize)
 
 -- a parser generates some output by consuming a list of tokens + positions
 type Parser a = Parsec [TokenPos] () a
@@ -210,3 +211,8 @@ parseTokens isDebugMode ts = do
         putStrLn "Successfully parsed tokens:"
         print ast
       return ast
+
+-- Helper function to ease implementation of readable tests
+-- ONLY used in testing context
+unsafeParse :: (Parseable a) => String -> Either ParseError a
+unsafeParse = Parser.parse . unsafeTokenize
