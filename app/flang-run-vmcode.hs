@@ -1,4 +1,4 @@
-import MainLib (flangRunVMCode)
+import HelperLib (flangRunVMCode)
 
 isDebugMode :: Bool
 isDebugMode = False

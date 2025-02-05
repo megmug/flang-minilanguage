@@ -14,8 +14,50 @@ import Data.List (delete)
 import Data.List.Index (indexed)
 import Machine (Object (DEF), boolToInteger)
 import MachineInstruction
-import Parser (ParseResult, unsafeParse)
+  ( Arity,
+    FOperator
+      ( And,
+        Divide,
+        Equals,
+        FIf,
+        Minus,
+        Not,
+        Or,
+        Plus,
+        Smaller,
+        Times
+      ),
+    FType (FBool, FInteger),
+    Instruction
+      ( Call,
+        Halt,
+        Makeapp,
+        Operator,
+        Pushfun,
+        Pushparam,
+        Pushpre,
+        Pushval,
+        Reset,
+        Return,
+        Slide,
+        Unwind,
+        Update
+      ),
+    OperatorArg (One, OpIf, Two),
+    UpdateArg (Arity, PredefinedOperator),
+  )
 import SyntaxTree
+  ( Definition (..),
+    Expression (..),
+    LocalDefinition (LocalDefinition),
+    Program (..),
+    VariableName,
+    boundVariables,
+    freeVariables,
+    isIndependentFrom,
+    substitute,
+    substituteDefs,
+  )
 
 {- The code generator maintains a state that carries:
     - the current prefix length (how many machine instructions precede the one that will be generated next?)
@@ -295,12 +337,5 @@ generateProgram isDebugMode ast = do
         putStrLn "Code:"
         print prog
       return (heap, prog)
-
--- This is a helper function to ease implementation of readable tests
--- ONLY used in testing context
-unsafeGenerate :: String -> Either String (HeapEnvironment, Code)
-unsafeGenerate prog = case unsafeParse prog :: ParseResult Program of
-  Left _ -> error "unsafe code generator crashed because of syntax error"
-  Right p -> generate p
 
 {--}

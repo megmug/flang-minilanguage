@@ -1,4 +1,4 @@
-import MainLib (flangCompileAndPrint)
+import HelperLib (flangCompileAndPrint)
 
 isDebugMode :: Bool
 isDebugMode = True
