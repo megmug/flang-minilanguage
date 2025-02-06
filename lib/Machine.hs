@@ -303,6 +303,10 @@ step = do
           | op == FIf -> do
               pc <- use pcounter
               push pc
+              {- push representation of operator onto stack 
+               - this is different in the spec, but otherwise, the generated PushParam offset is wrong, so this seems to be the intended behaviour
+               -}
+              push top
               {- this is nasty - but according to spec! -}
               jumpTo 13
           {- unary operator: otherwise op == Not -}
@@ -400,6 +404,7 @@ step = do
         _ <- pop
         returnAddr <- pop
         _ <- pop
+        _ <- pop
         trueBranchAddr <- pop
         falseBranchAddr <- pop
         -- here we assume that the condObj is already evaluated, since it Operator OpIf is preceded by "Unwind, Call"
@@ -409,7 +414,13 @@ step = do
           otherObj -> throwError $ "Operator: non-boolean value in if-condition: " ++ show otherObj
         resAddr <- add2arg resAppAddr
 
-        {- Push elements to stack - the spec is wrong, so unsure what exactly is the right thing to do here (?) -}
+        {- Push elements to stack - the spec is wrong, but it makes sense to do this:
+         - push the address of the false branch first - this is the address of the if expression, since it is an application of (if cond then trueBranch else) to falseBranch
+         - then push the return address
+         - then push the address of the resulting expression
+         - this must be the order since "Operator OpIf" is followed by "Update PredefinedOperator" which expects  the order "expression to indirect, return address, target of indirection <- TOP"
+         -}
+        push falseBranchAddr
         push returnAddr
         push resAddr
 
