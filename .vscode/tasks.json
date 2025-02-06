@@ -27,6 +27,29 @@
             }
         },
         {
+            "label": "Test with stack",
+            "type": "shell",
+            "command": "stack",
+            "args": [
+                "test"
+            ],
+            "options": {
+                "shell": {
+                    "executable" : "nix-shell",
+                    "args": ["--command"]
+                }
+            },
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": [],
+            "group": {
+                "kind": "test",
+                "isDefault": true
+            }
+        },
+        {
             "label": "Run ghci with stack",
             "type": "shell",
             "command": "stack",
