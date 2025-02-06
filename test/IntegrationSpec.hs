@@ -4,13 +4,22 @@ import HelperLib (testRun)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
 import Data.Either (isLeft)
 
+ackermannDef :: String
+ackermannDef = "ack n m = if n == 0 then m + 1 else if m == 0 then ack (n - 1) 1 else ack (n - 1) (ack n (m - 1));"
+
 spec :: Spec
 spec = do
-  describe "running example programs" $ do
-    it "example program 'fak' evaluates to 720" $ testRun "f x = if x < 0 then 1 else x * f(x - 1); main = f 6;" `shouldBe` Right "82"
+  describe "running example programs from the script" $ do
+    it "example program 'fak' evaluates to 720" $ testRun "f x = if x < 0 then 1 else x * f(x - 1); main = f 6;" `shouldBe` Right "720"
     it "example program 'let' evaluates to 5" $ testRun "f x = let y = x ; x = 5 in y; main = (f 1);" `shouldBe` Right "5"
     it "example program 'quadrat' evaluates to 81" $ testRun "main = quadrat (quadrat (3 * 1)); quadrat x = x * x;" `shouldBe` Right "81"
     it "example program 'second' evaluates to 2" $ testRun "main = second 1 2; second x y = y;" `shouldBe` Right "2"
+
+  describe "running other more complex examples" $ do
+    it "'ackermann n m' with n = 0, m = 0 evaluates to 1" $ testRun ("main = ack 0 0;" ++ ackermannDef) `shouldBe` Right "1"
+    it "'ackermann n m' with n = 1, m = 1 evaluates to 3" $ testRun ("main = ack 1 1;" ++ ackermannDef) `shouldBe` Right "3"
+    it "'ackermann n m' with n = 2, m = 2 evaluates to 7" $ testRun ("main = ack 2 2;" ++ ackermannDef) `shouldBe` Right "7"
+    it "'ackermann n m' with n = 3, m = 3 evaluates to 61" $ testRun ("main = ack 3 3;" ++ ackermannDef) `shouldBe` Right "61"
 
   describe "extremely simple base cases" $ do
     describe "arithmetical and logical connectives" $ do
@@ -42,14 +51,19 @@ spec = do
       it "'main = true | false;' evaluates to true" $ testRun "main = true | false;" `shouldBe` Right "true"
       it "'main = false | false;' evaluates to false" $ testRun "main = false | false;" `shouldBe` Right "false"
       it "'main = true | 3;' doesn't evaluate" $ testRun "main = true | 3;" `shouldSatisfy` isLeft
+
     describe "atomic expressions (except variables)" $ do
       it "'main = 5;' evaluates to 5" $ testRun "main = 5;" `shouldBe` Right "5"
       it "'main = false;' evaluates to false" $ testRun "main = false;" `shouldBe` Right "false"
+
     describe "function application" $ do
       it "'main = f 5; f x = x;' evaluates to 5" $ testRun "main = f 5; f x = x;" `shouldBe` Right "5"
+
     describe "let" $ do
       it "'main = let x = 1 in x;' evaluates to 1" $ testRun "main = let x = 1 in x;" `shouldBe` Right "1"
       it "'main = let x = y; y = 1 in x;' evaluates to 1" $ testRun "main = let x = y; y = 1 in x;" `shouldBe` Right "1"
+
     describe "if-then-else" $ do
-      it "example program 'main = if true then 1 else 0;' evaluates to 1" $ testRun "main = if true then 1 else 0;" `shouldBe` Right "1"
-      it "example program 'main = if false then 1 else 0;' evaluates to 0" $ testRun "main = if false then 1 else 0;" `shouldBe` Right "0"
+      it "'main = if true then 1 else 0;' evaluates to 1" $ testRun "main = if true then 1 else 0;" `shouldBe` Right "1"
+      it "'main = if false then 1 else 0;' evaluates to 0" $ testRun "main = if false then 1 else 0;" `shouldBe` Right "0"
+      it "'main = if ( if false then true else false ) then 1 else 0;' evaluates to 0" $ testRun "main = if ( if false then true else false ) then 1 else 0;" `shouldBe` Right "0"
