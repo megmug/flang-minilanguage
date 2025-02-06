@@ -365,8 +365,10 @@ step = do
               _ -> throwError "Operator: Type error!"
         loadNextInstruction
       Two -> do
-        operand1Addr <- pop
+        -- The order of the operands on the stack is 'operator, operand 1, operand 2 <- TOP' (structure established by the subroutine for binary operators)
         operand2Addr <- pop
+        operand1Addr <- pop
+
         opAddr <- pop
         returnAddr <- pop
         _ <- pop
