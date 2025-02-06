@@ -100,7 +100,7 @@ runProgramIO isDebugMode h prog = case createMachineWithHeap h prog of
       (Left s, _) -> putStr $ "Error running program: " ++ s
       (Right (VAL t v), _) -> case t of
         FInteger -> print v
-        FBool -> putStr $ if v == 0 then "False" else "True"
+        FBool -> putStr $ if v == 0 then "false" else "true"
       (Right o, _) -> putStr $ "Return value is malformed (" ++ show o ++ ")"
 
 getArgsSetBuffering :: IO [String]
@@ -169,5 +169,5 @@ testRun input = case testGenerate input of
       (Left s, _) -> Left s
       (Right (VAL t v), _) -> Right $ case t of
         FInteger -> show v
-        FBool -> if v == 0 then "False" else "True"
+        FBool -> if v == 0 then "false" else "true"
       (Right o, _) -> Left $ "Return value is malformed (" ++ show o ++ ")"
