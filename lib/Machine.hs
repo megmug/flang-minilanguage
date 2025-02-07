@@ -303,7 +303,7 @@ step = do
           | op == FIf -> do
               pc <- use pcounter
               push pc
-              {- push representation of operator onto stack 
+              {- push representation of operator onto stack
                - this is different in the spec, but otherwise, the generated PushParam offset is wrong, so this seems to be the intended behaviour
                -}
               push top
@@ -315,7 +315,7 @@ step = do
               push pc
               {- push representation of operator onto stack -}
               push top
-              jumpTo 19
+              jumpTo 21
         _ -> throwError "Call: Malformed object detected!"
     Return -> do
       res <- pop
@@ -342,7 +342,7 @@ step = do
           newValAddr <- pop
           returnAddr <- pop
           oldExprAddr <- pop
-          
+
           {- Adjust heap cell at old expression address
              Weirdly, this is missing in the spec but necessary to implement the (lazy) evaluation correctly
              It is mentioned briefly in the introduction of the new instructions for complete MF though -}

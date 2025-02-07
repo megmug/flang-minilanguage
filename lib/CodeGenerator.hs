@@ -130,7 +130,7 @@ instance Generatable Program where
            Pushfun "main",
            Call,
            Halt,
-           -- subroutine for binary operators
+           -- subroutine for binary operators (address: 4)
            Pushparam 2,
            Unwind,
            Call,
@@ -140,14 +140,17 @@ instance Generatable Program where
            Operator Two,
            Update PredefinedOperator,
            Return,
-           -- subroutine for if-then-else operator
+           -- subroutine for if-then-else operator (address: 13)
            Pushparam 2,
            Unwind,
            Call,
            Operator OpIf,
            Update PredefinedOperator,
+           -- These instructions are to evaluate the resulting expression as well, since this is the intended behaviour for if-then-else expressions
+           Unwind, --
+           Call,
            Return,
-           -- subroutine for unary operator
+           -- subroutine for unary operator (address: 21)
            Pushparam 2,
            Unwind,
            Call,
