@@ -1,4 +1,4 @@
-main = ack 0 0;
+main = ack 3 3;
 ack n m = if n == 0
           then m + 1 
           else if m == 0
