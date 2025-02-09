@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleInstances #-}
+
 module SyntaxTree where
 
 import Data.List (nub, (\\))
@@ -28,6 +30,47 @@ data Expression
   deriving (Eq, Read, Show)
 
 type VariableName = String
+
+class PrettyPrintable t where
+  prettyPrint :: t -> String
+
+instance PrettyPrintable Program where
+  prettyPrint (Program defs) = prettyPrint defs
+
+instance PrettyPrintable [Definition] where
+  prettyPrint [] = ""
+  prettyPrint (def : defs) = prettyPrint def ++ if null defs then "" else " " ++ prettyPrint defs
+
+instance PrettyPrintable Definition where
+  prettyPrint (Definition f params e) = f ++ prettyPrintVars params ++ " = " ++ prettyPrint e ++ ";"
+    where
+      prettyPrintVars [] = ""
+      prettyPrintVars (p : ps) = " " ++ p ++ prettyPrintVars ps
+
+instance PrettyPrintable Expression where
+  prettyPrint (Let defs e) = "let " ++ prettyPrint defs ++ " in " ++ prettyPrint e
+  prettyPrint (IfThenElse cond e1 e2) = "if " ++ prettyPrint cond ++ " then " ++ prettyPrint e1 ++ " else " ++ prettyPrint e2
+  prettyPrint (Disjunction e1 e2) = "(" ++ prettyPrint e1 ++ ") | (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Conjunction e1 e2) = "(" ++ prettyPrint e1 ++ ") & (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (LogicalNegation e) = "not " ++ "(" ++ prettyPrint e ++ ")"
+  prettyPrint (Smaller e1 e2) = "(" ++ prettyPrint e1 ++ ") < (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Equality e1 e2) = "(" ++ prettyPrint e1 ++ ") == (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Minus e) = "-(" ++ prettyPrint e ++ ")"
+  prettyPrint (Difference e1 e2) = "(" ++ prettyPrint e1 ++ ") - (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Sum e1 e2) = "(" ++ prettyPrint e1 ++ ") + (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Quotient e1 e2) = "(" ++ prettyPrint e1 ++ ") / (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Product e1 e2) = "(" ++ prettyPrint e1 ++ ") * (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Application e1 e2) = "(" ++ prettyPrint e1 ++ ") (" ++ prettyPrint e2 ++ ")"
+  prettyPrint (Variable v) = v
+  prettyPrint (Number n) = show n
+  prettyPrint (Boolean b) = if b then "true" else "false"
+
+instance PrettyPrintable [LocalDefinition] where
+  prettyPrint [] = ""
+  prettyPrint (def : defs) = prettyPrint def ++ if null defs then "" else "; " ++ prettyPrint defs
+
+instance PrettyPrintable LocalDefinition where
+  prettyPrint (LocalDefinition v e) = v ++ " = " ++ prettyPrint e
 
 boundVariables :: Expression -> [VariableName]
 boundVariables (Let [] e) = boundVariables e
