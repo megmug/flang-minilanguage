@@ -9,7 +9,7 @@ import Control.Lens.Operators ((%=), (.=))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
-import Data.List (delete)
+import Data.List (delete, (\\))
 import Data.List.Index (indexed)
 import Machine (Object (DEF), boolToInteger)
 import MachineInstruction
@@ -51,6 +51,7 @@ import SyntaxTree
     LocalDefinition (LocalDefinition),
     Program (..),
     VariableName,
+    boundByTopLevelVars,
     boundVariables,
     freeVariables,
     isIndependentFrom,
@@ -184,13 +185,13 @@ instance Generatable Definition where
 
 instance Generatable Expression where
   generator (Let [] e) = generator e
-  generator (Let (def@(LocalDefinition v e) : defs) e') = do
+  generator expr@(Let (def@(LocalDefinition v e) : defs) e') = do
     if def `isIndependentFrom` defs
       then do
         gFuncs <- use globalFuncs
         let gFuncNames = map fst gFuncs
-        let freeVarsInDef = delete v $ freeVariables e
-        let calculateNewGlobalFuncName x = if x `elem` (gFuncNames ++ boundVariables (Let (def : defs) e') ++ freeVariables (Let (def : defs) e')) then calculateNewGlobalFuncName $ x ++ "'" else v
+        let freeVarsInDef = freeVariables e \\ boundByTopLevelVars (def : defs)
+        let calculateNewGlobalFuncName x = if x `elem` (gFuncNames ++ boundVariables expr ++ freeVariables expr) then calculateNewGlobalFuncName $ x ++ "'" else x
         let v' = calculateNewGlobalFuncName v
         let calculateReplacingApp [] = Variable v'; calculateReplacingApp (x : xs) = Application (calculateReplacingApp xs) (Variable x)
         let replacingApp = calculateReplacingApp (reverse freeVarsInDef)
@@ -200,11 +201,12 @@ instance Generatable Expression where
         globalFuncs %= (++ [newGlobalFuncEntry])
         let substitutedDefs = substituteDefs defs v replacingApp
         let substitutedE' = substitute v replacingApp e'
-        generator $ Let substitutedDefs substitutedE'
+        let newLetExpression = Let substitutedDefs substitutedE'
+        generator newLetExpression
       else do
         -- if first def is dependent on other defs, just cycle through until an independent one is found
         -- in case of recursive definitions, this will loop forever, but those are unsupported
-        generator (Let (defs ++ [def]) e)
+        generator (Let (defs ++ [def]) e')
   generator (IfThenElse e1 e2 e3) = do
     generator e3
     posList %= posPlus 1

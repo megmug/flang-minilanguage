@@ -1,7 +1,6 @@
 module SyntaxTree where
 
-import Data.List (nub)
-import Data.List.Extra (delete)
+import Data.List (nub, (\\))
 
 newtype Program = Program [Definition] deriving (Eq, Read, Show)
 
@@ -49,7 +48,7 @@ boundVariables _ = []
 
 freeVariables :: Expression -> [VariableName]
 freeVariables (Let [] e) = freeVariables e
-freeVariables (Let ((LocalDefinition v e) : defs) e') = delete v $ nub $ freeVariables e ++ freeVariables (Let defs e')
+freeVariables (Let (def@(LocalDefinition _ e) : defs) e') = nub (freeVariables e ++ freeVariables (Let defs e')) \\ boundByTopLevelVars (def : defs)
 freeVariables (IfThenElse e1 e2 e3) = nub $ freeVariables e1 ++ freeVariables e2 ++ freeVariables e3
 freeVariables (Disjunction e1 e2) = nub $ freeVariables e1 ++ freeVariables e2
 freeVariables (Conjunction e1 e2) = nub $ freeVariables e1 ++ freeVariables e2
@@ -99,6 +98,10 @@ substitute _ _ e@(Boolean _) = e
 boundByTopLevel :: VariableName -> [LocalDefinition] -> Bool
 boundByTopLevel _ [] = False
 boundByTopLevel v ((LocalDefinition v' _) : definitions) = v == v' || boundByTopLevel v definitions
+
+boundByTopLevelVars :: [LocalDefinition] -> [VariableName]
+boundByTopLevelVars [] = []
+boundByTopLevelVars ((LocalDefinition v _) : defs) = v : boundByTopLevelVars defs
 
 substituteDefs :: [LocalDefinition] -> VariableName -> Expression -> [LocalDefinition]
 substituteDefs [] _ _ = []
