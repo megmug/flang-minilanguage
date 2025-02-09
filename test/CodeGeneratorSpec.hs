@@ -1,12 +1,14 @@
 module CodeGeneratorSpec where
 
+import Control.Exception (evaluate)
 import Data.Either (isLeft, isRight)
 import HelperLib (testGenerate)
-import Test.Hspec (Spec, describe, it, shouldSatisfy)
+import System.Timeout (timeout)
+import Test.Hspec (Spec, describe, expectationFailure, it, shouldSatisfy)
 
 spec :: Spec
 spec = do
-  describe "example programs evaluation" $ do
+  describe "example programs compilation" $ do
     it "example program 'boolfak' DOES NOT compile due to typing error" $ do
       testGenerate "bool x = x == true | x == false; f x = if bool x | x < 0 then 1 else x * f (x - 1); main = f 6;" `shouldSatisfy` isLeft
 
@@ -21,3 +23,13 @@ spec = do
 
     it "example program 'second' DOES compile" $ do
       testGenerate "main = second 1 2; second x y = y;" `shouldSatisfy` isRight
+
+  describe "catching common errors" $ do
+    it "'main = x;' DOES NOT compile (undefined variable/function)" $ testGenerate "main = x;" `shouldSatisfy` isLeft
+    it "'main = f 0 0; f x x = x;' DOES NOT compile (conflicting parameter bindings)" $ testGenerate "main = f 0 0; f x x = x;" `shouldSatisfy` isLeft
+    it "'main = let x = 1; x = 5 in x;' DOES NOT compile (conflicting let bindings)" $ testGenerate "main = let x = 1; x = 5 in x;" `shouldSatisfy` isLeft
+    it "'main = let x = y; y = x in x;' DOES NOT compile (recursive let bindings)" $ do
+      mRes <- timeout (5 * 1000000) (evaluate (testGenerate "main = let x = y; y = x in x;"))
+      case mRes of
+        Nothing -> expectationFailure "Test timed out after 5s"
+        Just res -> res `shouldSatisfy` isLeft

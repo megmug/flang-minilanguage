@@ -70,6 +70,9 @@ spec = do
     describe "let" $ do
       it "'main = let x = 1 in x;' evaluates to 1" $ testRun "main = let x = 1 in x;" `shouldBe` Right "1"
       it "'main = let x = y; y = 1 in x;' evaluates to 1" $ testRun "main = let x = y; y = 1 in x;" `shouldBe` Right "1"
+      it "'main = let quadrat = x * x; hochvier = quadrat * quadrat; x = 5 in x;' evaluates to 5" $ testRun "main = let quadrat = x * x; hochvier = quadrat * quadrat; x = 5 in x;" `shouldBe` Right "5"
+      it "'main = let quadrat = x * x; hochvier = quadrat * quadrat; x = 5 in quadrat;' evaluates to 25" $ testRun "main = let quadrat = x * x; hochvier = quadrat * quadrat; x = 5 in quadrat;" `shouldBe` Right "25"
+      it "'main = let quadrat = x * x; hochvier = quadrat * quadrat; x = 5 in hochvier;' evaluates to 625" $ testRun "main = let quadrat = x * x; hochvier = quadrat * quadrat; x = 5 in hochvier;" `shouldBe` Right "625"
 
     describe "if-then-else" $ do
       it "'main = if true then 1 else 0;' evaluates to 1" $ testRun "main = if true then 1 else 0;" `shouldBe` Right "1"
