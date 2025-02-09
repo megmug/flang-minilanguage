@@ -215,13 +215,6 @@ step :: (Monad m) => Computation m ()
 step = do
   currentInstruction <- use iregister
   case currentInstruction of
-    {- Add function definition to heap
-       This is a replacement for the otherwise necessary predefined global function definition environment -}
-    AddDef f n a -> do
-      _ <- new $ DEF f n a
-      loadNextInstruction
-    {- NOOP for compatibility sake -}
-    Reset -> loadNextInstruction
     Pushfun f -> do
       a <- address f
       push a
@@ -255,24 +248,6 @@ step = do
           push top
         else throwError "Slide: can't slide so many elements, stack too small!"
       loadNextInstruction
-    Reduce -> do
-      top <- pop
-      o <- getObject top
-      case o of
-        (APP a1 _) -> do
-          push top
-          push a1
-        (DEF _ _ a) -> do
-          push top
-          pc <- use pcounter
-          {- Here we don't need to push pc + 1 because pc already points to the next instruction as per the instruction cycle -}
-          push pc
-          jumpTo a
-        (VAL _ _) -> do
-          returnAddr <- pop
-          push top
-          jumpTo returnAddr
-        _ -> throwError "Reduce: Malformed object detected!"
     Unwind -> do
       top <- pop
       push top
@@ -298,7 +273,7 @@ step = do
               {- push representation of operator onto stack -}
               push top
               {- this is nasty - but according to spec! -}
-              jumpTo 4
+              jumpTo 3
           {- ternary operator: if-}
           | op == FIf -> do
               pc <- use pcounter
@@ -308,14 +283,14 @@ step = do
                -}
               push top
               {- this is nasty - but according to spec! -}
-              jumpTo 13
+              jumpTo 12
           {- unary operator: otherwise op == Not -}
           | otherwise -> do
               pc <- use pcounter
               push pc
               {- push representation of operator onto stack -}
               push top
-              jumpTo 21
+              jumpTo 20
         _ -> throwError "Call: Malformed object detected!"
     Return -> do
       res <- pop

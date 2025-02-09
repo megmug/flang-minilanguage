@@ -36,7 +36,6 @@ import MachineInstruction
         Pushparam,
         Pushpre,
         Pushval,
-        Reset,
         Return,
         Slide,
         Unwind,
@@ -127,11 +126,10 @@ instance Generatable Program where
   generator (Program defs) = do
     code
       -- main program entry point
-      .= [ Reset,
-           Pushfun "main",
+      .= [ Pushfun "main",
            Call,
            Halt,
-           -- subroutine for binary operators (address: 4)
+           -- subroutine for binary operators (address: 3)
            Pushparam 2,
            Unwind,
            Call,
@@ -141,7 +139,7 @@ instance Generatable Program where
            Operator Two,
            Update PredefinedOperator,
            Return,
-           -- subroutine for if-then-else operator (address: 13)
+           -- subroutine for if-then-else operator (address: 12)
            Pushparam 2,
            Unwind,
            Call,
@@ -151,7 +149,7 @@ instance Generatable Program where
            Unwind, --
            Call,
            Return,
-           -- subroutine for unary operator (address: 21)
+           -- subroutine for unary operator (address: 20)
            Pushparam 2,
            Unwind,
            Call,

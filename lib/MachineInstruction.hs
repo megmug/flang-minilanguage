@@ -30,14 +30,11 @@ data FOperator
   deriving (Eq, Show, Read)
 
 data Instruction
-  = Reset
-  | AddDef FunctionName Arity CodeAddress
-  | Pushfun FunctionName
+  = Pushfun FunctionName
   | Pushval FType Integer
   | Pushparam Int
   | Makeapp
   | Slide Int
-  | Reduce
   | Unwind
   | Call
   | Return
