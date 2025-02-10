@@ -26,6 +26,7 @@ spec = do
 
   describe "catching common errors" $ do
     it "'main = x;' DOES NOT compile (undefined variable/function)" $ testGenerate "main = x;" `shouldSatisfy` isLeft
+    it "'main = f; f = 1; f = 2;' DOES NOT compile (conflicting function definitions)" $ testGenerate "main = f; f = 1; f = 2;" `shouldSatisfy` isLeft
     it "'main = f 0 0; f x x = x;' DOES NOT compile (conflicting parameter bindings)" $ testGenerate "main = f 0 0; f x x = x;" `shouldSatisfy` isLeft
     it "'main = let x = 1; x = 5 in x;' DOES NOT compile (conflicting let bindings)" $ testGenerate "main = let x = 1; x = 5 in x;" `shouldSatisfy` isLeft
     it "'main = let x = y; y = x in x;' DOES NOT compile (recursive let bindings)" $ do
