@@ -1,6 +1,9 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
 {-# HLINT ignore "Use lambda-case" #-}
+
 module Parser where
 
 import Data.List.NonEmpty (NonEmpty ((:|)), init, last)
@@ -26,6 +29,7 @@ import SyntaxTree
       ),
     LocalDefinition (..),
     Program (..),
+    Stage (Raw),
   )
 import Text.Parsec.Combinator (many1, optionMaybe)
 import Text.Parsec.Error (ParseError)
@@ -51,16 +55,16 @@ class Parseable a where
   parse :: [TokenPos] -> Either ParseError a
   parse = Text.Parsec.Prim.parse parser ""
 
-instance Parseable Program where
+instance Parseable (Program Raw) where
   parser = program
 
-program :: Parser Program
+program :: Parser (Program Raw)
 program = Program <$> many1 (definition <* accept Semicolon)
 
-instance Parseable Definition where
+instance Parseable (Definition Raw) where
   parser = definition
 
-definition :: Parser Definition
+definition :: Parser (Definition Raw)
 definition = Definition <$> acceptName <*> many acceptName <*> (accept (:=) *> expression)
 
 localDefinitions :: Parser [LocalDefinition]
@@ -72,16 +76,16 @@ instance Parseable LocalDefinition where
 localDefinition :: Parser LocalDefinition
 localDefinition = LocalDefinition <$> acceptName <*> (accept (:=) *> expression)
 
-instance Parseable Expression where
+instance Parseable (Expression Raw) where
   parser = expression
 
-expression :: Parser Expression
+expression :: Parser (Expression Raw)
 expression =
   disjunctionExpression
     <|> SyntaxTree.Let <$> (accept Token.Let *> localDefinitions) <*> (accept Token.In *> expression)
     <|> SyntaxTree.IfThenElse <$> (accept Token.If *> expression) <*> (accept Then *> expression) <*> (accept Else *> expression)
 
-disjunctionExpression :: Parser Expression
+disjunctionExpression :: Parser (Expression Raw)
 disjunctionExpression = do
   e1 <- conjunctionExpression
   me2 <- optionMaybe (accept (Token.:|) *> disjunctionExpression)
@@ -89,7 +93,7 @@ disjunctionExpression = do
     Nothing -> e1
     Just e2 -> Disjunction e1 e2
 
-conjunctionExpression :: Parser Expression
+conjunctionExpression :: Parser (Expression Raw)
 conjunctionExpression = do
   e1 <- negationExpression
   me2 <- optionMaybe (accept (:&) *> conjunctionExpression)
@@ -97,14 +101,14 @@ conjunctionExpression = do
     Nothing -> e1
     Just e2 -> Conjunction e1 e2
 
-negationExpression :: Parser Expression
+negationExpression :: Parser (Expression Raw)
 negationExpression = do
   mnot <- optionMaybe $ accept Not
   case mnot of
     Nothing -> smallerEqualsExpression
     Just _ -> LogicalNegation <$> smallerEqualsExpression
 
-smallerEqualsExpression :: Parser Expression
+smallerEqualsExpression :: Parser (Expression Raw)
 smallerEqualsExpression = do
   e1 <- unaryMinusExpression
   msmaller <- optionMaybe $ accept (:<)
@@ -116,14 +120,14 @@ smallerEqualsExpression = do
         Just _ -> Equality e1 <$> smallerEqualsExpression
     Just _ -> Smaller e1 <$> smallerEqualsExpression
 
-unaryMinusExpression :: Parser Expression
+unaryMinusExpression :: Parser (Expression Raw)
 unaryMinusExpression = do
   mminus <- optionMaybe $ accept (:-)
   case mminus of
     Nothing -> binaryMinusExpression
     Just _ -> Minus <$> binaryMinusExpression
 
-binaryMinusExpression :: Parser Expression
+binaryMinusExpression :: Parser (Expression Raw)
 binaryMinusExpression = do
   e1 <- additionExpression
   me2 <- optionMaybe (accept (:-) *> binaryMinusExpression)
@@ -131,7 +135,7 @@ binaryMinusExpression = do
     Nothing -> e1
     Just e2 -> Difference e1 e2
 
-additionExpression :: Parser Expression
+additionExpression :: Parser (Expression Raw)
 additionExpression = do
   e1 <- divisionExpression
   me2 <- optionMaybe (accept (:+) *> additionExpression)
@@ -139,7 +143,7 @@ additionExpression = do
     Nothing -> e1
     Just e2 -> Sum e1 e2
 
-divisionExpression :: Parser Expression
+divisionExpression :: Parser (Expression Raw)
 divisionExpression = do
   e1 <- multiplicationExpression
   me2 <- optionMaybe (accept (:/) *> divisionExpression)
@@ -147,7 +151,7 @@ divisionExpression = do
     Nothing -> e1
     Just e2 -> Quotient e1 e2
 
-multiplicationExpression :: Parser Expression
+multiplicationExpression :: Parser (Expression Raw)
 multiplicationExpression = do
   e1 <- applicationExpression
   me2 <- optionMaybe (accept (:*) *> multiplicationExpression)
@@ -155,7 +159,7 @@ multiplicationExpression = do
     Nothing -> e1
     Just e2 -> Product e1 e2
 
-applicationExpression :: Parser Expression
+applicationExpression :: Parser (Expression Raw)
 applicationExpression = do
   first <- bracketedExpression
   rest <- many bracketedExpression
@@ -166,10 +170,10 @@ applicationExpression = do
       appTree = makeApp (initOf first rest) (lastOf first rest)
   return appTree
 
-bracketedExpression :: Parser Expression
+bracketedExpression :: Parser (Expression Raw)
 bracketedExpression = atomicExpression <|> (accept OpenRoundBracket *> expression <* accept CloseRoundBracket)
 
-atomicExpression :: Parser Expression
+atomicExpression :: Parser (Expression Raw)
 atomicExpression = (Variable <$> acceptName) <|> (Number <$> acceptInteger) <|> (SyntaxTree.Boolean <$> acceptBoolean)
 
 {- Primitive helper functions

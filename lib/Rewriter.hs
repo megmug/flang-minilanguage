@@ -1,7 +1,11 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
 {-# HLINT ignore "Avoid lambda" #-}
 {-# HLINT ignore "Avoid lambda using `infix`" #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 module Rewriter where
 
 import Control.Lens (use, (%=), (.=))
@@ -9,11 +13,27 @@ import Control.Monad (when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
 import Data.List (delete, intersect, (\\))
-import SyntaxTree (Definition (Definition), Expression (..), LocalDefinition (LocalDefinition), PrettyPrintable (prettyPrint), Program (Program), VariableName, boundByTopLevelVars, boundVariables, freeVariables, hasConflictingLetBindings, substitute, substituteDefs, topologicallySort)
+import SyntaxTree
+  ( Definition (Definition),
+    Expression (..),
+    LocalDefinition (LocalDefinition),
+    PrettyPrintable (prettyPrint),
+    Program (Program),
+    Stage (..),
+    VariableName,
+    boundByTopLevelVars,
+    boundVariables,
+    coreToRaw,
+    freeVariables,
+    hasConflictingLetBindings,
+    substitute,
+    substituteDefs,
+    topologicallySort,
+  )
 
 data RewriterState = RewriterState AccumulatedFunctionDefinitions GlobalFunctionList
 
-type AccumulatedFunctionDefinitions = [Definition]
+type AccumulatedFunctionDefinitions = [Definition Raw]
 
 type GlobalFunctionList = [VariableName]
 
@@ -26,26 +46,26 @@ accDefinitions f (RewriterState acc funcs) = (\acc' -> RewriterState acc' funcs)
 globalFuncs :: (Functor f) => (GlobalFunctionList -> f GlobalFunctionList) -> RewriterState -> f RewriterState
 globalFuncs f (RewriterState acc funcs) = (\funcs' -> RewriterState acc funcs') <$> f funcs
 
-class Rewritable a where
-  rewriter :: a -> Rewriter a
+class Rewritable a b where
+  rewriter :: a -> Rewriter b
 
   -- This runs a generator with some supplied state (can also be useful for testing)
-  customRewrite :: a -> RewriterState -> Either String a
+  customRewrite :: a -> RewriterState -> Either String b
   customRewrite e = evalState (runExceptT rewriteAndReturn)
     where
       rewriteAndReturn = rewriter e
 
-  rewrite :: a -> Either String a
+  rewrite :: a -> Either String b
   rewrite e = customRewrite e (RewriterState [] [])
 
-instance Rewritable Program where
+instance Rewritable (Program Raw) (Program Core) where
   rewriter (Program defs) = do
     accDefinitions .= defs
     Program <$> rewriteDefs
 
 -- Iteratively generate global function definitions
 -- We need to do this because a function definition can arbitrarily yield more definitions in the form of local let definitions - so we iterate until the accumulated definitions are empty
-rewriteDefs :: Rewriter [Definition]
+rewriteDefs :: Rewriter [Definition Core]
 rewriteDefs = do
   acc <- use accDefinitions
   case acc of
@@ -55,13 +75,13 @@ rewriteDefs = do
       ds <- rewriteDefs
       return (d : ds)
 
-instance Rewritable Definition where
+instance Rewritable (Definition Raw) (Definition Core) where
   rewriter def@(Definition f params e) = do
     e' <- rewriter e
     accDefinitions %= delete def
     return $ Definition f params e'
 
-instance Rewritable Expression where
+instance Rewritable (Expression Raw) (Expression Core) where
   rewriter (Let defs e) = do
     -- eliminate possible inner let-definitions in e
     e' <- rewriter e
@@ -85,7 +105,7 @@ instance Rewritable Expression where
         accDefinitions %= (++ [newFuncDef])
         globalFuncs %= (++ [v'])
         let substitutedDefs = substituteDefs sortedDefs v replacingApp
-        let substitutedInnerExpr = substitute v replacingApp e'
+        let substitutedInnerExpr = substitute v replacingApp (coreToRaw e')
         let newLetExpression = Let substitutedDefs substitutedInnerExpr
         rewriter newLetExpression
   rewriter (IfThenElse cond e1 e2) = IfThenElse <$> rewriter cond <*> rewriter e1 <*> rewriter e2
@@ -100,9 +120,9 @@ instance Rewritable Expression where
   rewriter (Quotient e1 e2) = Quotient <$> rewriter e1 <*> rewriter e2
   rewriter (Product e1 e2) = Product <$> rewriter e1 <*> rewriter e2
   rewriter (Application e1 e2) = Application <$> rewriter e1 <*> rewriter e2
-  rewriter v@(Variable _) = return v
-  rewriter n@(Number _) = return n
-  rewriter b@(Boolean _) = return b
+  rewriter (Variable v) = return $ Variable v
+  rewriter (Number n) = return $ Number n
+  rewriter (Boolean b) = return $ Boolean b
 
 {- Helper functions and rewriters -}
 throwError :: String -> Rewriter a

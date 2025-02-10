@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+
 module HelperLib where
 
 import CodeGenerator
@@ -25,7 +27,7 @@ import Machine
 import MachineInstruction (FType (FBool, FInteger), Instruction)
 import Parser (ParseResult, Parseable, parse)
 import Rewriter (Rewritable (rewrite))
-import SyntaxTree (Program, prettyPrint)
+import SyntaxTree (Program, Stage (..), prettyPrint)
 import System.Environment (getArgs)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
 import Text.Parsec (ParseError)
@@ -53,7 +55,7 @@ tokenizeFile isDebugMode path = do
 
 -- this is a helper IO action to share code in the different main executables
 -- it parses TokenPos streams into SyntaxTrees, outputting debugging information if requested
-parseTokens :: Bool -> [TokenPos] -> IO Program
+parseTokens :: Bool -> [TokenPos] -> IO (Program Raw)
 parseTokens isDebugMode ts = do
   case Parser.parse ts of
     Left e -> fail $ "Parse error: " ++ show e
@@ -64,7 +66,7 @@ parseTokens isDebugMode ts = do
         print ast
       return ast
 
-rewriteProgram :: Bool -> Program -> IO Program
+rewriteProgram :: Bool -> Program Raw -> IO (Program Core)
 rewriteProgram isDebugMode ast = do
   case rewrite ast of
     Left err -> fail err
@@ -77,7 +79,7 @@ rewriteProgram isDebugMode ast = do
 
 -- This is a helper IO action to share code in the different main executables
 -- it generates code for a given program syntax tree, optionally outputting debugging information
-generateProgram :: Bool -> Program -> IO (HeapEnvironment, Code)
+generateProgram :: Bool -> Program Core -> IO (HeapEnvironment, Code)
 generateProgram isDebugMode ast = do
   case generate ast of
     Left err -> fail err
@@ -130,7 +132,7 @@ flangTokenizeAndPrint isDebugMode = do
   ts <- flangTokenize isDebugMode
   if isDebugMode then return () else print (map fst ts)
 
-flangParse :: Bool -> IO Program
+flangParse :: Bool -> IO (Program Raw)
 flangParse isDebugMode = do
   ts <- flangTokenize isDebugMode
   parseTokens isDebugMode ts
@@ -140,7 +142,7 @@ flangParseAndPrint isDebugMode = do
   ast <- flangParse isDebugMode
   if isDebugMode then return () else putStrLn $ prettyPrint ast
 
-flangRewrite :: Bool -> IO Program
+flangRewrite :: Bool -> IO (Program Core)
 flangRewrite isDebugMode = do
   ast <- flangParse isDebugMode
   rewriteProgram isDebugMode ast
@@ -177,8 +179,8 @@ testParse prog = case tokenize prog of
   Left s -> Left s
   Right p -> parse p
 
-testRewrite :: String -> Either String Program
-testRewrite prog = case testParse prog :: ParseResult Program of
+testRewrite :: String -> Either String (Program Core)
+testRewrite prog = case testParse prog :: ParseResult (Program Raw) of
   Left s -> Left $ show s
   Right p -> rewrite p
 

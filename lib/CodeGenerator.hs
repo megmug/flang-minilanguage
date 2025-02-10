@@ -1,7 +1,9 @@
-{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
 {-# HLINT ignore "Avoid lambda" #-}
 {-# HLINT ignore "Use record patterns" #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
+
 module CodeGenerator where
 
 import Control.Lens (use)
@@ -49,6 +51,7 @@ import SyntaxTree
   ( Definition (..),
     Expression (..),
     Program (..),
+    Stage (Core),
     VariableName,
     prettyPrint,
   )
@@ -112,7 +115,7 @@ class Generatable a where
 
 {- Class instances -}
 {- Convention: Every generator ensures to clean up its state after itself -}
-instance Generatable Program where
+instance Generatable (Program Core) where
   generator (Program defs) = do
     code
       -- main program entry point
@@ -151,7 +154,7 @@ instance Generatable Program where
     traverse_ addToGlobalFuncs defs
     traverse_ generator defs
 
-instance Generatable Definition where
+instance Generatable (Definition Core) where
   generator def@(Definition f params e) = do
     when (params /= nub params) $ throwError $ "function definition " ++ prettyPrint def ++ " has conflicting parameter bindings!"
     c <- use code
@@ -168,8 +171,7 @@ instance Generatable Definition where
     -- reset posList (compile-time cleanup)
     posList .= []
 
-instance Generatable Expression where
-  generator (Let _ _) = throwError "let-definitions unsupported!"
+instance Generatable (Expression Core) where
   generator (IfThenElse e1 e2 e3) = do
     generator e3
     posList %= posPlus 1
@@ -180,7 +182,6 @@ instance Generatable Expression where
     -- cleanup - see Application rule
     posList %= posPlus (-2)
   -- NOTE: the disjunction or conjunction rule can be optimized by leveraging de-morgan-rule in syntax tree
-  generator (Disjunction _ _) = throwError "disjunction expressions unsupported!"
   generator (Conjunction e1 e2) = do
     generator e2
     posList %= posPlus 1
@@ -205,8 +206,6 @@ instance Generatable Expression where
     code %= (++ [Pushpre Equals, Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-1)
-  -- NOTE: the difference operation can be replaced by sum + minus in syntax tree. In this case, we need to implement the unary - differently
-  generator (SyntaxTree.Minus _) = throwError "minus-expressions unsupported!"
   generator (Difference e1 e2) = do
     generator e2
     posList %= posPlus 1
@@ -263,7 +262,7 @@ instance Generatable Expression where
 {- Helper functions and generators -}
 
 {- -}
-addToGlobalFuncs :: Definition -> Generator ()
+addToGlobalFuncs :: Definition Core -> Generator ()
 addToGlobalFuncs def@(Definition f params _) = do
   -- add new function to global environment, if it is not already defined - otherwise, throw error
   funs <- use globalFuncs

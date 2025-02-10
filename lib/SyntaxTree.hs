@@ -1,53 +1,82 @@
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE StandaloneDeriving #-}
 
 module SyntaxTree where
 
 import Data.List (nub, permutations, subsequences, (\\))
 
-newtype Program = Program [Definition] deriving (Eq, Read, Show)
+{- The stage s is parameterizing an expression to indicate if it is a raw program (directly after parsing), or an already rewritten one
+ - This allows simplifying the typifier and code generator, since it essentially hides the unneeded constructers in later compilation stages
+ -}
+data Stage = Raw | Core
 
-data Definition = Definition VariableName [VariableName] Expression deriving (Eq, Read, Show)
+newtype Program (s :: Stage) = Program [Definition s] deriving (Eq, Show)
 
-data LocalDefinition = LocalDefinition VariableName Expression deriving (Eq, Read, Show)
+data Definition (s :: Stage) = Definition VariableName [VariableName] (Expression s) deriving (Eq, Show)
 
-data Expression
-  = Let [LocalDefinition] Expression
-  | IfThenElse Expression Expression Expression
-  | Disjunction Expression Expression
-  | Conjunction Expression Expression
-  | LogicalNegation Expression
-  | Smaller Expression Expression
-  | Equality Expression Expression
-  | Minus Expression
-  | Difference Expression Expression
-  | Sum Expression Expression
-  | Quotient Expression Expression
-  | Product Expression Expression
-  | Application Expression Expression
-  | Variable VariableName
-  | Number Integer
-  | Boolean Bool
-  deriving (Eq, Read, Show)
+data LocalDefinition = LocalDefinition VariableName (Expression Raw) deriving (Eq, Show)
+
+data Expression (s :: Stage) where
+  IfThenElse :: Expression s -> Expression s -> Expression s -> Expression s
+  Conjunction :: Expression s -> Expression s -> Expression s
+  LogicalNegation :: Expression s -> Expression s
+  Smaller :: Expression s -> Expression s -> Expression s
+  Equality :: Expression s -> Expression s -> Expression s
+  Difference :: Expression s -> Expression s -> Expression s
+  Sum :: Expression s -> Expression s -> Expression s
+  Quotient :: Expression s -> Expression s -> Expression s
+  Product :: Expression s -> Expression s -> Expression s
+  Application :: Expression s -> Expression s -> Expression s
+  Variable :: VariableName -> Expression s
+  Number :: Integer -> Expression s
+  Boolean :: Bool -> Expression s
+  -- These constructors exist only in a Raw Expression (before rewriting):
+  Let :: [LocalDefinition] -> Expression Raw -> Expression Raw
+  Disjunction :: Expression Raw -> Expression Raw -> Expression Raw
+  Minus :: Expression Raw -> Expression Raw
+
+deriving instance Show (Expression s)
+
+deriving instance Eq (Expression s)
 
 type VariableName = String
+
+-- This is just an embedding from Core to Raw Expressions that is unfortunately needed for some operations on Expressions
+coreToRaw :: Expression Core -> Expression Raw
+coreToRaw (IfThenElse a b c) = IfThenElse (coreToRaw a) (coreToRaw b) (coreToRaw c)
+coreToRaw (Conjunction a b) = Conjunction (coreToRaw a) (coreToRaw b)
+coreToRaw (LogicalNegation a) = LogicalNegation (coreToRaw a)
+coreToRaw (Smaller a b) = Smaller (coreToRaw a) (coreToRaw b)
+coreToRaw (Equality a b) = Equality (coreToRaw a) (coreToRaw b)
+coreToRaw (Difference a b) = Difference (coreToRaw a) (coreToRaw b)
+coreToRaw (Sum a b) = Sum (coreToRaw a) (coreToRaw b)
+coreToRaw (Quotient a b) = Quotient (coreToRaw a) (coreToRaw b)
+coreToRaw (Product a b) = Product (coreToRaw a) (coreToRaw b)
+coreToRaw (Application a b) = Application (coreToRaw a) (coreToRaw b)
+coreToRaw (Variable name) = Variable name
+coreToRaw (Number n) = Number n
+coreToRaw (Boolean b) = Boolean b
 
 class PrettyPrintable t where
   prettyPrint :: t -> String
 
-instance PrettyPrintable Program where
+instance PrettyPrintable (Program s) where
   prettyPrint (Program defs) = prettyPrint defs
 
-instance PrettyPrintable [Definition] where
+instance PrettyPrintable [Definition s] where
   prettyPrint [] = ""
   prettyPrint (def : defs) = prettyPrint def ++ if null defs then "" else " " ++ prettyPrint defs
 
-instance PrettyPrintable Definition where
+instance PrettyPrintable (Definition s) where
   prettyPrint (Definition f params e) = f ++ prettyPrintVars params ++ " = " ++ prettyPrint e ++ ";"
     where
       prettyPrintVars [] = ""
       prettyPrintVars (p : ps) = " " ++ p ++ prettyPrintVars ps
 
-instance PrettyPrintable Expression where
+instance PrettyPrintable (Expression s) where
   prettyPrint (Let defs e) = "let " ++ prettyPrint defs ++ " in " ++ prettyPrint e
   prettyPrint (IfThenElse cond e1 e2) = "if " ++ prettyPrint cond ++ " then " ++ prettyPrint e1 ++ " else " ++ prettyPrint e2
   prettyPrint (Disjunction e1 e2) = "(" ++ prettyPrint e1 ++ ") | (" ++ prettyPrint e2 ++ ")"
@@ -72,7 +101,7 @@ instance PrettyPrintable [LocalDefinition] where
 instance PrettyPrintable LocalDefinition where
   prettyPrint (LocalDefinition v e) = v ++ " = " ++ prettyPrint e
 
-boundVariables :: Expression -> [VariableName]
+boundVariables :: Expression s -> [VariableName]
 boundVariables (Let [] e) = boundVariables e
 boundVariables (Let ((LocalDefinition v e) : defs) e') = nub $ [v] ++ boundVariables e ++ boundVariables (Let defs e')
 boundVariables (Disjunction e1 e2) = nub $ boundVariables e1 ++ boundVariables e2
@@ -89,7 +118,7 @@ boundVariables (Application e1 e2) = nub $ boundVariables e1 ++ boundVariables e
 -- numbers, booleans and variables don't bind anything
 boundVariables _ = []
 
-freeVariables :: Expression -> [VariableName]
+freeVariables :: Expression s -> [VariableName]
 freeVariables (Let [] e) = freeVariables e
 freeVariables (Let (def@(LocalDefinition _ e) : defs) e') = nub (freeVariables e ++ freeVariables (Let defs e')) \\ boundByTopLevelVars (def : defs)
 freeVariables (IfThenElse e1 e2 e3) = nub $ freeVariables e1 ++ freeVariables e2 ++ freeVariables e3
@@ -109,11 +138,11 @@ freeVariables (Variable v) = [v]
 freeVariables _ = []
 
 -- rename free variable (first parameter) in the given expression to the string given by the second parameter
-rename :: String -> String -> Expression -> Expression
+rename :: String -> String -> Expression s -> Expression s
 rename v v' = substitute v (Variable v')
 
 -- substitute any occurence of the free variable v in the expression given by the third parameter by the expression given by the second parameter
-substitute :: VariableName -> Expression -> Expression -> Expression
+substitute :: VariableName -> Expression s -> Expression s -> Expression s
 substitute v e' (Let defs e) = Let substitutedDefs substitutedE
   where
     substitutedDefs = map substituteDef defs
@@ -146,7 +175,7 @@ boundByTopLevelVars :: [LocalDefinition] -> [VariableName]
 boundByTopLevelVars [] = []
 boundByTopLevelVars ((LocalDefinition v _) : defs) = v : boundByTopLevelVars defs
 
-substituteDefs :: [LocalDefinition] -> VariableName -> Expression -> [LocalDefinition]
+substituteDefs :: [LocalDefinition] -> VariableName -> Expression Raw -> [LocalDefinition]
 substituteDefs [] _ _ = []
 substituteDefs ((LocalDefinition v e) : defs) v' e' = LocalDefinition v (substitute v' e' e) : substituteDefs defs v' e'
 
