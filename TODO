@@ -1,5 +1,4 @@
 for 1.0.0.0:
-- refactor code generation as two stages: first expression re-writing (e.g. eliminating let bindings) to generate simpler expressions that then get generated
 - implement type system
 stretch goal:
 for 1.1.0.0:
