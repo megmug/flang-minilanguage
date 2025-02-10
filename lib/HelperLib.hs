@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TupleSections #-}
 
 module HelperLib where
 
@@ -33,6 +34,7 @@ import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
 import Text.Parsec (ParseError)
 import Token (TokenPos)
 import Tokenizer (tokenize)
+import Typifier (FLangType, Typifiable (typify))
 
 {- This library features helper function and IO actions that aid in in code deduplication when utilizing the compiler libraries in the executables or for testing
  - The IO actions are mainly used for the flang-*-executables
@@ -67,15 +69,26 @@ parseTokens isDebugMode ts = do
       return ast
 
 rewriteProgram :: Bool -> Program Raw -> IO (Program Core)
-rewriteProgram isDebugMode ast = do
-  case rewrite ast of
+rewriteProgram isDebugMode prog = do
+  case rewrite prog of
     Left err -> fail err
-    Right ast' -> do
+    Right prog' -> do
       when isDebugMode $ do
         putStrLn ""
         putStrLn "Successfully rewritten program:"
-        print ast'
-      return ast'
+        print prog'
+      return prog'
+
+typifyProgram :: Bool -> Program Core -> IO (Program Core, FLangType)
+typifyProgram isDebugMode prog = do
+  case typify prog of
+    Left err -> fail err
+    Right t -> do
+      when isDebugMode $ do
+        putStrLn ""
+        putStrLn "Successfully typified program as:"
+        print t
+      return (prog, t)
 
 -- This is a helper IO action to share code in the different main executables
 -- it generates code for a given program syntax tree, optionally outputting debugging information
@@ -152,9 +165,19 @@ flangRewriteAndPrint isDebugMode = do
   ast <- flangRewrite isDebugMode
   if isDebugMode then return () else putStrLn $ prettyPrint ast
 
+flangTypify :: Bool -> IO (Program Core, FLangType)
+flangTypify isDebugMode = do
+  prog <- flangRewrite isDebugMode
+  typifyProgram isDebugMode prog
+
+flangTypifyAndPrint :: Bool -> IO ()
+flangTypifyAndPrint isDebugMode = do
+  (_, t) <- flangTypify isDebugMode
+  if isDebugMode then return () else print t
+
 flangCompile :: Bool -> IO (HeapEnvironment, Code)
 flangCompile isDebugMode = do
-  ast <- flangRewrite isDebugMode
+  (ast, _) <- flangTypify isDebugMode
   generateProgram isDebugMode ast
 
 flangCompileAndPrint :: Bool -> IO ()
@@ -184,10 +207,15 @@ testRewrite prog = case testParse prog :: ParseResult (Program Raw) of
   Left s -> Left $ show s
   Right p -> rewrite p
 
+testTypify :: String -> Either String (Program Core, FLangType)
+testTypify prog = case testRewrite prog of
+  Left s -> Left s
+  Right p -> (p,) <$> typify p
+
 testGenerate :: String -> Either String (HeapEnvironment, Code)
-testGenerate prog = case testRewrite prog of
+testGenerate prog = case testTypify prog of
   Left s -> Left $ show s
-  Right p -> generate p
+  Right (p, _) -> generate p
 
 testRun :: String -> Either String String
 testRun input = case testGenerate input of

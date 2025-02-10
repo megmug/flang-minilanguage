@@ -56,6 +56,30 @@ executables:
   flang-rewrite-debug:
     main: flang-rewrite-debug.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flang
+
+  flang-typify:
+    main: flang-typify.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - flang
+
+  flang-typify-debug:
+    main: flang-typify-debug.hs
+    source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
