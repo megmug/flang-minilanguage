@@ -2,7 +2,7 @@
 
 module SyntaxTree where
 
-import Data.List (nub, (\\))
+import Data.List (nub, permutations, subsequences, (\\))
 
 newtype Program = Program [Definition] deriving (Eq, Read, Show)
 
@@ -162,13 +162,14 @@ isIndependentFrom def = not . any (isDependentOn def)
 isDependentOn :: LocalDefinition -> LocalDefinition -> Bool
 isDependentOn (LocalDefinition _ e) (LocalDefinition v _) = v `elem` freeVariables e
 
--- TODO: this implementation is wrong, but seems to work for some special cases
-transitiveExtension :: (a -> a -> Bool) -> [a] -> (a -> a -> Bool)
-transitiveExtension r [] = r
-transitiveExtension r xs = \a b -> a `r` b || let r' a' b' = any (\z -> (a' `r` z) && (z `r` b')) xs in transitiveExtension r' (tail xs) a b
+extendRelation :: (a -> a -> Bool) -> a -> a -> [a] -> Bool
+extendRelation r a b [] = a `r` b
+extendRelation r a b (x : xs) = (a `r` x) && extendRelation r x b xs
 
-{- perform a topological sort of the local definitions (in a let binding) failing if the bindings are recursive
- -}
+transitiveExtension :: (a -> a -> Bool) -> [a] -> (a -> a -> Bool)
+transitiveExtension r xs a b = let allOrderedSubsequences = concatMap permutations (subsequences xs) in any (extendRelation r a b) allOrderedSubsequences
+
+{- perform a topological sort of the local definitions (in a let binding) failing if the bindings are recursive -}
 topologicallySort :: [LocalDefinition] -> Either String [LocalDefinition]
 topologicallySort [] = Right []
 topologicallySort (x : xs)
