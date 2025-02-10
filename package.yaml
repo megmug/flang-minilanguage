@@ -26,30 +26,50 @@ executables:
   flang-tokenize:
     main: flang-tokenize.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-tokenize-debug:
     main: flang-tokenize-debug.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-parse:
     main: flang-parse.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-parse-debug:
     main: flang-parse-debug.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-rewrite:
     main: flang-rewrite.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
@@ -86,36 +106,60 @@ executables:
   flang-compile:
     main: flang-compile.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-compile-debug:
     main: flang-compile-debug.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-run:
     main: flang-run.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-run-debug:
     main: flang-run-debug.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-run-vmcode:
     main: flang-run-vmcode.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
   flang-run-vmcode-debug:
     main: flang-run-vmcode-debug.hs
     source-dirs: app
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
     dependencies:
     - flang
 
