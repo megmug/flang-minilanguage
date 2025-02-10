@@ -6,11 +6,12 @@ module CodeGenerator where
 
 import Control.Lens (use)
 import Control.Lens.Operators ((%=), (.=))
-import Control.Monad (when)
+import Control.Monad (unless, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
-import Data.List (delete, nub, (\\))
+import Data.Foldable (traverse_)
+import Data.List (nub)
 import Data.List.Index (indexed)
 import Machine (Object (DEF), boolToInteger)
 import MachineInstruction
@@ -22,7 +23,6 @@ import MachineInstruction
         FIf,
         Minus,
         Not,
-        Or,
         Plus,
         Smaller,
         Times
@@ -48,16 +48,9 @@ import MachineInstruction
 import SyntaxTree
   ( Definition (..),
     Expression (..),
-    LocalDefinition (LocalDefinition),
     Program (..),
     VariableName,
-    boundByTopLevelVars,
-    boundVariables,
-    freeVariables,
-    isIndependentFrom,
     prettyPrint,
-    substitute,
-    substituteDefs,
   )
 
 {- The code generator maintains a state that carries:
@@ -66,7 +59,7 @@ import SyntaxTree
     - the code that was already generated, maintained as a simple list
     - a heap environment that is used to store the generated DEF function definitions that the machine requires for operation
  -}
-data GenState = GenState PosList Code HeapEnvironment AccumulatedFunctionDefinitions GlobalFunctionList
+data GenState = GenState PosList Code HeapEnvironment GlobalFunctionList
 
 type PrefixLength = Int
 
@@ -76,8 +69,6 @@ type Code = [Instruction]
 
 type HeapEnvironment = [Object]
 
-type AccumulatedFunctionDefinitions = [Definition]
-
 type GlobalFunctionList = [(VariableName, Arity)]
 
 -- Here we define a type for monadic actions that represent the types of our code generators
@@ -85,19 +76,16 @@ type Generator a = ExceptT String (State GenState) a
 
 {- Lens definitions for GenState -}
 posList :: (Functor f) => (PosList -> f PosList) -> GenState -> f GenState
-posList f (GenState pos c h acc funcs) = (\pos' -> GenState pos' c h acc funcs) <$> f pos
+posList f (GenState pos c h funcs) = (\pos' -> GenState pos' c h funcs) <$> f pos
 
 code :: (Functor f) => (Code -> f Code) -> GenState -> f GenState
-code f (GenState pos c h acc funcs) = (\code' -> GenState pos code' h acc funcs) <$> f c
+code f (GenState pos c h funcs) = (\code' -> GenState pos code' h funcs) <$> f c
 
 heapEnv :: (Functor f) => (HeapEnvironment -> f HeapEnvironment) -> GenState -> f GenState
-heapEnv f (GenState pos c h acc funcs) = (\h' -> GenState pos c h' acc funcs) <$> f h
-
-accDefinitions :: (Functor f) => (AccumulatedFunctionDefinitions -> f AccumulatedFunctionDefinitions) -> GenState -> f GenState
-accDefinitions f (GenState pos c h acc funcs) = (\acc' -> GenState pos c h acc' funcs) <$> f acc
+heapEnv f (GenState pos c h funcs) = (\h' -> GenState pos c h' funcs) <$> f h
 
 globalFuncs :: (Functor f) => (GlobalFunctionList -> f GlobalFunctionList) -> GenState -> f GenState
-globalFuncs f (GenState pos c h acc funcs) = (\funcs' -> GenState pos c h acc funcs') <$> f funcs
+globalFuncs f (GenState pos c h funcs) = (\funcs' -> GenState pos c h funcs') <$> f funcs
 
 {- -}
 
@@ -113,12 +101,12 @@ class Generatable a where
     where
       generateAndReturn = do
         generator e
-        (GenState _ c h _ _) <- lift get
+        (GenState _ c h _) <- lift get
         return (h, c)
 
   -- This runs a generator with some default empty state (mostly useful for whole programs)
   generate :: a -> Either String (HeapEnvironment, Code)
-  generate e = customGenerate e $ GenState [] [] [] [] []
+  generate e = customGenerate e $ GenState [] [] [] []
 
 {--}
 
@@ -160,8 +148,8 @@ instance Generatable Program where
            Return
          ]
     -- to understand why we need to generate function defs iteratively, see generateDefs
-    accDefinitions .= defs
-    generateDefs
+    traverse_ addToGlobalFuncs defs
+    traverse_ generator defs
 
 instance Generatable Definition where
   generator def@(Definition f params e) = do
@@ -169,10 +157,8 @@ instance Generatable Definition where
     c <- use code
     let addr = length c
     let n = length params
-    -- add new function DEF to heap environment
+    -- add new function DEF to heap environment (it is already added to the global functions at the program-generator level)
     heapEnv %= (++ [DEF f n addr])
-    -- add new function to global environment
-    globalFuncs %= (++ [(f, length params)])
     -- add params to posList
     posList .= paramsToPosList params
     -- generate defining expression
@@ -181,33 +167,9 @@ instance Generatable Definition where
     code %= (++ [Update (Arity n), Slide (n + 1), Unwind, Call, Return])
     -- reset posList (compile-time cleanup)
     posList .= []
-    -- remove function def from accumulated definitions to avoid generating it again (necessary because of iterative generation of function defs, see generateDefs)
-    accDefinitions %= delete def
 
 instance Generatable Expression where
-  generator (Let [] e) = generator e
-  generator expr@(Let (def@(LocalDefinition v e) : defs) e') = do
-    if def `isIndependentFrom` defs
-      then do
-        gFuncs <- use globalFuncs
-        let gFuncNames = map fst gFuncs
-        let freeVarsInDef = freeVariables e \\ boundByTopLevelVars (def : defs)
-        let calculateNewGlobalFuncName x = if x `elem` (gFuncNames ++ boundVariables expr ++ freeVariables expr) then calculateNewGlobalFuncName $ x ++ "'" else x
-        let v' = calculateNewGlobalFuncName v
-        let calculateReplacingApp [] = Variable v'; calculateReplacingApp (x : xs) = Application (calculateReplacingApp xs) (Variable x)
-        let replacingApp = calculateReplacingApp (reverse freeVarsInDef)
-        let newFuncDef = Definition v' freeVarsInDef (substitute v replacingApp e)
-        let newGlobalFuncEntry = (v', length freeVarsInDef)
-        accDefinitions %= (++ [newFuncDef])
-        globalFuncs %= (++ [newGlobalFuncEntry])
-        let substitutedDefs = substituteDefs defs v replacingApp
-        let substitutedE' = substitute v replacingApp e'
-        let newLetExpression = Let substitutedDefs substitutedE'
-        generator newLetExpression
-      else do
-        -- if first def is dependent on other defs, just cycle through until an independent one is found
-        -- in case of recursive definitions, this will loop forever, but those are unsupported
-        generator (Let (defs ++ [def]) e')
+  generator (Let _ _) = throwError "let-definitions unsupported!"
   generator (IfThenElse e1 e2 e3) = do
     generator e3
     posList %= posPlus 1
@@ -218,13 +180,7 @@ instance Generatable Expression where
     -- cleanup - see Application rule
     posList %= posPlus (-2)
   -- NOTE: the disjunction or conjunction rule can be optimized by leveraging de-morgan-rule in syntax tree
-  generator (Disjunction e1 e2) = do
-    generator e2
-    posList %= posPlus 1
-    generator e1
-    code %= (++ [Pushpre Or, Makeapp, Makeapp])
-    -- cleanup - see Application rule
-    posList %= posPlus (-1)
+  generator (Disjunction _ _) = throwError "disjunction expressions unsupported!"
   generator (Conjunction e1 e2) = do
     generator e2
     posList %= posPlus 1
@@ -250,7 +206,7 @@ instance Generatable Expression where
     -- cleanup - see Application rule
     posList %= posPlus (-1)
   -- NOTE: the difference operation can be replaced by sum + minus in syntax tree. In this case, we need to implement the unary - differently
-  generator (SyntaxTree.Minus e) = generator (Difference (Number 0) e)
+  generator (SyntaxTree.Minus _) = throwError "minus-expressions unsupported!"
   generator (Difference e1 e2) = do
     generator e2
     posList %= posPlus 1
@@ -293,7 +249,10 @@ instance Generatable Expression where
       -- if it has a position it is a parameter
       Just i -> code %= (++ [Pushparam i])
       -- if it doesn't, we assume it is a function (of course this is unsafe, but this is better implemented as part of a proper type checker that doesn't yet exist)
-      Nothing -> code %= (++ [Pushfun v])
+      Nothing -> do
+        funs <- use globalFuncs
+        unless (v `isDefinedIn` funs) $ throwError $ "no such function: " ++ v
+        code %= (++ [Pushfun v])
   generator (Number n) = do
     code %= (++ [Pushval FInteger n])
   generator (Boolean b) = do
@@ -303,16 +262,13 @@ instance Generatable Expression where
 
 {- Helper functions and generators -}
 
--- Iteratively generate global function definitions
--- We need to do this because a function definition can arbitrarily yield more definitions in the form of local let definitions - so we iterate until the accumulated definitions are empty
-generateDefs :: Generator ()
-generateDefs = do
-  acc <- use accDefinitions
-  case acc of
-    [] -> return ()
-    def : _ -> do
-      generator def
-      generateDefs
+{- -}
+addToGlobalFuncs :: Definition -> Generator ()
+addToGlobalFuncs def@(Definition f params _) = do
+  -- add new function to global environment, if it is not already defined - otherwise, throw error
+  funs <- use globalFuncs
+  when (f `isDefinedIn` funs) $ throwError $ "conflicting function definition for function " ++ f ++ ": " ++ prettyPrint def
+  globalFuncs %= (++ [(f, length params)])
 
 throwError :: String -> Generator ()
 throwError s = throwE $ "Error during code generation: " ++ s
@@ -326,5 +282,10 @@ posPlus i = map (\(ind, a) -> (ind + i, a))
 lookupPos :: (Eq a) => a -> [(Int, a)] -> Maybe Int
 lookupPos _ [] = Nothing
 lookupPos y ((i, x) : xs) = if x == y then Just i else lookupPos y xs
+
+isDefinedIn :: VariableName -> GlobalFunctionList -> Bool
+isDefinedIn f fs = f `elem` funs
+  where
+    funs = map fst fs
 
 {--}
