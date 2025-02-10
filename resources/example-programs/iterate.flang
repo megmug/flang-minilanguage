@@ -1,0 +1,5 @@
+main = iterate square 4 2;
+square x = x * x;
+iterate f n v = if n == 0 then id v else compose f (iterate f (n - 1)) v;
+compose f g x = f (g x);
+id x = x;
