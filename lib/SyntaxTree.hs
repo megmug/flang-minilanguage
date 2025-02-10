@@ -150,6 +150,12 @@ substituteDefs :: [LocalDefinition] -> VariableName -> Expression -> [LocalDefin
 substituteDefs [] _ _ = []
 substituteDefs ((LocalDefinition v e) : defs) v' e' = LocalDefinition v (substitute v' e' e) : substituteDefs defs v' e'
 
+hasConflictingLetBindings :: [LocalDefinition] -> Bool
+hasConflictingLetBindings xs = projectVars /= nub projectVars
+  where
+    leftSide (LocalDefinition v _) = v
+    projectVars = map leftSide xs
+
 isIndependentFrom :: LocalDefinition -> [LocalDefinition] -> Bool
 isIndependentFrom def = not . any (isDependentOn def)
 
