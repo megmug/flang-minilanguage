@@ -1,5 +1,4 @@
 for 1.0.0.0:
-- implement better error handling in Code Generator (see test cases)
 - refactor code generation as two stages: first expression re-writing (e.g. eliminating let bindings) to generate simpler expressions that then get generated
 - implement type system
 stretch goal:
