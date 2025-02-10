@@ -28,6 +28,8 @@ spec = do
     it "faculty 3 evaluates to 6" $ testRun ("main = fak 3;" ++ facultyDef) `shouldBe` Right "6"
     it "faculty 4 evaluates to 24" $ testRun ("main = fak 4;" ++ facultyDef) `shouldBe` Right "24"
     it "faculty 6 evaluates to 720" $ testRun ("main = fak 6;" ++ facultyDef) `shouldBe` Right "720"
+    it "'main = (iterate square) 4 2; square x = x * x; iterate f n v = if n == 0 then id v else (compose f (iterate f (n - 1))) v; compose f g x = f (g x); id x = x;' evaluates to 65536" $ do
+      testRun "main = (iterate square) 4 2; square x = x * x; iterate f n v = if n == 0 then id v else (compose f (iterate f (n - 1))) v; compose f g x = f (g x); id x = x;" `shouldBe` Right "65536"
 
   describe "extremely simple base cases" $ do
     describe "arithmetical and logical connectives" $ do
