@@ -47,6 +47,18 @@ executables:
     dependencies:
     - flang
 
+  flang-rewrite:
+    main: flang-rewrite.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
+  flang-rewrite-debug:
+    main: flang-rewrite-debug.hs
+    source-dirs: app
+    dependencies:
+    - flang
+
   flang-compile:
     main: flang-compile.hs
     source-dirs: app

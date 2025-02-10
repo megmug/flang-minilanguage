@@ -155,3 +155,19 @@ isIndependentFrom def = not . any (isDependentOn def)
 
 isDependentOn :: LocalDefinition -> LocalDefinition -> Bool
 isDependentOn (LocalDefinition _ e) (LocalDefinition v _) = v `elem` freeVariables e
+
+-- TODO: this implementation is wrong, but seems to work for some special cases
+transitiveExtension :: (a -> a -> Bool) -> [a] -> (a -> a -> Bool)
+transitiveExtension r [] = r
+transitiveExtension r xs = \a b -> a `r` b || let r' a' b' = any (\z -> (a' `r` z) && (z `r` b')) xs in transitiveExtension r' (tail xs) a b
+
+{- perform a topological sort of the local definitions (in a let binding) failing if the bindings are recursive
+ -}
+topologicallySort :: [LocalDefinition] -> Either String [LocalDefinition]
+topologicallySort [] = Right []
+topologicallySort (x : xs)
+  | transitiveExtension isDependentOn (x : xs) x x = Left $ "local definitions " ++ prettyPrint (x : xs) ++ " are recursive!"
+  | x `isIndependentFrom` xs = do
+      sortedDefs <- topologicallySort xs
+      return $ x : sortedDefs
+  | otherwise = topologicallySort $ xs ++ [x]

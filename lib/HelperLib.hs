@@ -24,7 +24,8 @@ import Machine
   )
 import MachineInstruction (FType (FBool, FInteger), Instruction)
 import Parser (ParseResult, Parseable, parse)
-import SyntaxTree (Program)
+import Rewriter (Rewritable (rewrite))
+import SyntaxTree (Program, prettyPrint)
 import System.Environment (getArgs)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
 import Text.Parsec (ParseError)
@@ -62,6 +63,17 @@ parseTokens isDebugMode ts = do
         putStrLn "Successfully parsed tokens:"
         print ast
       return ast
+
+rewriteProgram :: Bool -> Program -> IO Program
+rewriteProgram isDebugMode ast = do
+  case rewrite ast of
+    Left err -> fail err
+    Right ast' -> do
+      when isDebugMode $ do
+        putStrLn ""
+        putStrLn "Successfully rewritten program:"
+        print ast'
+      return ast'
 
 -- This is a helper IO action to share code in the different main executables
 -- it generates code for a given program syntax tree, optionally outputting debugging information
@@ -126,11 +138,21 @@ flangParse isDebugMode = do
 flangParseAndPrint :: Bool -> IO ()
 flangParseAndPrint isDebugMode = do
   ast <- flangParse isDebugMode
-  if isDebugMode then return () else print ast
+  if isDebugMode then return () else putStrLn $ prettyPrint ast
+
+flangRewrite :: Bool -> IO Program
+flangRewrite isDebugMode = do
+  ast <- flangParse isDebugMode
+  rewriteProgram isDebugMode ast
+
+flangRewriteAndPrint :: Bool -> IO ()
+flangRewriteAndPrint isDebugMode = do
+  ast <- flangRewrite isDebugMode
+  if isDebugMode then return () else putStrLn $ prettyPrint ast
 
 flangCompile :: Bool -> IO (HeapEnvironment, Code)
 flangCompile isDebugMode = do
-  ast <- flangParse isDebugMode
+  ast <- flangRewrite isDebugMode
   generateProgram isDebugMode ast
 
 flangCompileAndPrint :: Bool -> IO ()
@@ -155,8 +177,13 @@ testParse prog = case tokenize prog of
   Left s -> Left s
   Right p -> parse p
 
+testRewrite :: String -> Either String Program
+testRewrite prog = case testParse prog :: ParseResult Program of
+  Left s -> Left $ show s
+  Right p -> rewrite p
+
 testGenerate :: String -> Either String (HeapEnvironment, Code)
-testGenerate prog = case testParse prog :: ParseResult Program of
+testGenerate prog = case testRewrite prog of
   Left s -> Left $ show s
   Right p -> generate p
 
