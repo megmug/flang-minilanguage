@@ -8,7 +8,7 @@ import Control.Lens (use, (%=), (.=))
 import Control.Monad (when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
-import Data.List (delete, intersect, nub, (\\))
+import Data.List (delete, intersect, (\\))
 import SyntaxTree (Definition (Definition), Expression (..), LocalDefinition (LocalDefinition), PrettyPrintable (prettyPrint), Program (Program), VariableName, boundByTopLevelVars, boundVariables, freeVariables, hasConflictingLetBindings, substitute, substituteDefs, topologicallySort)
 
 data RewriterState = RewriterState AccumulatedFunctionDefinitions GlobalFunctionList
@@ -57,7 +57,6 @@ rewriteDefs = do
 
 instance Rewritable Definition where
   rewriter def@(Definition f params e) = do
-    when (params /= nub params) $ throwError $ "function definition " ++ prettyPrint def ++ " has conflicting parameter bindings!"
     e' <- rewriter e
     accDefinitions %= delete def
     return $ Definition f params e'

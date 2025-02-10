@@ -6,10 +6,11 @@ module CodeGenerator where
 
 import Control.Lens (use)
 import Control.Lens.Operators ((%=), (.=))
+import Control.Monad (when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
-import Data.List (delete, (\\))
+import Data.List (delete, nub, (\\))
 import Data.List.Index (indexed)
 import Machine (Object (DEF), boolToInteger)
 import MachineInstruction
@@ -54,6 +55,7 @@ import SyntaxTree
     boundVariables,
     freeVariables,
     isIndependentFrom,
+    prettyPrint,
     substitute,
     substituteDefs,
   )
@@ -163,6 +165,7 @@ instance Generatable Program where
 
 instance Generatable Definition where
   generator def@(Definition f params e) = do
+    when (params /= nub params) $ throwError $ "function definition " ++ prettyPrint def ++ " has conflicting parameter bindings!"
     c <- use code
     let addr = length c
     let n = length params
