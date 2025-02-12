@@ -25,6 +25,7 @@ spec = do
       testGenerate "main = second 1 2; second x y = y;" `shouldSatisfy` isRight
 
   describe "catching common errors" $ do
+    it "'f = 1;' DOES NOT compile (no main definition)" $ testGenerate "f = 1;" `shouldSatisfy` isLeft
     it "'main = x;' DOES NOT compile (undefined variable/function)" $ testGenerate "main = x;" `shouldSatisfy` isLeft
     it "'main = f; f = 1; f = 2;' DOES NOT compile (conflicting function definitions)" $ testGenerate "main = f; f = 1; f = 2;" `shouldSatisfy` isLeft
     it "'main = f 0 0; f x x = x;' DOES NOT compile (conflicting parameter bindings)" $ testGenerate "main = f 0 0; f x x = x;" `shouldSatisfy` isLeft
