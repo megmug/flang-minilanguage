@@ -118,6 +118,9 @@ boundVariables (Application e1 e2) = nub $ boundVariables e1 ++ boundVariables e
 -- numbers, booleans and variables don't bind anything
 boundVariables _ = []
 
+boundVariablesInDef :: Definition s -> [VariableName]
+boundVariablesInDef (Definition f params e) = nub $ (f:params) ++ boundVariables e
+
 freeVariables :: Expression s -> [VariableName]
 freeVariables (Let [] e) = freeVariables e
 freeVariables (Let (def@(LocalDefinition _ e) : defs) e') = nub (freeVariables e ++ freeVariables (Let defs e')) \\ boundByTopLevelVars (def : defs)
@@ -136,6 +139,17 @@ freeVariables (Application e1 e2) = nub $ freeVariables e1 ++ freeVariables e2
 freeVariables (Variable v) = [v]
 -- numbers and booleans are not free variables
 freeVariables _ = []
+
+freeVariablesInDef :: Definition s -> [VariableName]
+freeVariablesInDef (Definition f params e) = freeVariables e \\ (f:params)
+
+isClosedDefinition :: Definition s -> [Definition s] -> Bool
+isClosedDefinition def defs = all (`appearsIn` defs) (freeVariablesInDef def)
+  where appearsIn _ [] = False
+        appearsIn g (Definition f' _ _:defs') = g == f' || g `appearsIn` defs'
+
+isClosedProgram :: Program s -> Bool
+isClosedProgram (Program defs) = all (`isClosedDefinition` defs) defs
 
 -- rename free variable (first parameter) in the given expression to the string given by the second parameter
 rename :: String -> String -> Expression s -> Expression s
