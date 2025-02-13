@@ -8,21 +8,21 @@
 
 module Typifier where
 
-import Control.Lens (use)
+import Control.Lens (use, (%=))
 import Control.Lens.Operators ((.=))
 import Control.Monad (replicateM)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
-import Data.List (nub, uncons)
-import SyntaxTree (Expression (Application, Boolean, Conjunction, Difference, Equality, IfThenElse, LogicalNegation, Number, Product, Quotient, Smaller, Sum, Variable), PrettyPrintable (prettyPrint), Program, Stage (Core), VariableName)
+import Data.List (delete, nub, uncons)
+import SyntaxTree (Definition (Definition), Expression (Application, Boolean, Conjunction, Difference, Equality, IfThenElse, LogicalNegation, Number, Product, Quotient, Smaller, Sum, Variable), PrettyPrintable (prettyPrint), Program, Stage (Core), VariableName)
 
 data TypifierState = TypifierState TypeAssumptions VariableStream
 
 data FType = FBool | FInteger | TypeVariable VariableName | FType :->: FType deriving (Eq, Show)
 
-data QuantifiedType = QuantifiedType [VariableName] FType
+data QuantifiedType = QuantifiedType [VariableName] FType deriving (Eq, Show)
 
-data TypeAssumption = SimpleAssumption VariableName FType | QuantifiedAssumption VariableName QuantifiedType
+data TypeAssumption = SimpleAssumption VariableName FType | QuantifiedAssumption VariableName QuantifiedType deriving (Eq, Show)
 
 type TypeAssumptions = [TypeAssumption]
 
@@ -54,21 +54,65 @@ class Typifiable a b where
   typify :: a -> Either String b
   typify e = customTypify e $ TypifierState [] ["_t" ++ show i | i <- [0 ..] :: [Integer]]
 
-{- Rough outline for how we want to typify a program:
- - we start by grouping the definitions into mutually recursive sets of functions
- - we sort the set of these sets topologically
- - we typify these mutually recursive sets in topological order
- - to kickstart the typification process of such a set, we calculate type assumptions based on the function signatures
- - the type assumptions also include an assumption for every predefined operator - for example: '*' :: Integer -> Integer -> Integer
- - we iteratively typify again and again, obtaining new type assumptions every time, until the assumptions stabilize (this should be roughly the iterative typification in KFPTS)
- - once we obtain a (stable) type for the main function, we stop
- - if the obtained main type is a bool or integer, typification is successful and we return that type
- - if not, typification fails
- - also, typification can fail at any point if any inconsistent type is encountered (e.g. * instantiated with a bool
- -}
+{- Typifier for programs, according to an adaptation of KFPTS iterative typification -}
 instance Typifiable (Program Core) FType where
+  -- the type assumptions include an assumption for every predefined operator - for example: '*' :: Integer -> Integer -> Integer
+
+  -- we start by grouping the definitions into mutually recursive sets of functions
+
+  -- we typify these mutually recursive sets in topological order
+
+  -- we check if we obtained a type for the main function, and if that type is consistent with F's assumptions (must be Bool or Integer)
+  -- if it is, we return that type
+  -- it it isn't, typification fails
+
   -- TODO: this must be implemented correctly, for now it just returns a default value to make the compiler pipeline work
   typifier _ = return FInteger
+
+{- This assumes that defs are a mutually recursive set of function definitions
+ - it also assumes that any type assumptions from externally dependended upon functions (besides the ones in the mutually recursive set defs) are already established
+ -}
+instance Typifiable [Definition Core] [TypeAssumption] where
+  typifier defs = do
+    -- at the beginning, create the most general assumptions for our mutually recursive functions and refine them recursively 
+    let toFunctionName (Definition f _ _) = f
+    let functionNames = map toFunctionName defs
+    newVars <- replicateM (length defs) getNewTypeVar
+    let entries = zip functionNames newVars
+    let initAssumptions = map (\(f, v) -> QuantifiedAssumption f (QuantifiedType [v] (TypeVariable v))) entries
+    typifier' initAssumptions functionNames
+    where
+      {- the recursion/iteration happens here - it is a fixed point iteration until the producedAssumptions are equivalent to the preAssumptions 
+       - since iterative typification in this form undecidable, this might not terminate for some programs 
+       -}
+      typifier' preAssumptions funNames = do
+        mapM_ addToTypeAssumptions preAssumptions
+        producedTypes <- traverse typifier defs
+        mapM_ removeFromTypeAssumptions preAssumptions
+        let producedAssumptions = zipWith QuantifiedAssumption funNames producedTypes
+        let assumptionsAreEquivalent = and $ zipWith areEquivalentAssumptions preAssumptions producedAssumptions
+        if assumptionsAreEquivalent
+          then return producedAssumptions
+          else typifier' producedAssumptions funNames
+
+{- This assumes that all necessary type assumptions to typify f are already established
+ - in the case of a recursive function, the another typifier will establish this before calling
+ - also in the case of a recursive function, the resulting type may not be the final type, iteration may be needed (see program typifier)
+ -}
+instance Typifiable (Definition Core) QuantifiedType where
+  typifier (Definition _ params e) = do
+    -- calculate new type variables for use in the params' type assumptions
+    vars <- replicateM (length params) getNewTypeVar
+    let newAssumptions = zipWith (\v a -> SimpleAssumption v (TypeVariable a)) params vars
+    mapM_ addToTypeAssumptions newAssumptions
+    (tau, eqs) <- typifier e
+    let constructArrowType [] t = t; constructArrowType (v : vs) t = TypeVariable v :->: constructArrowType vs t
+    let unsubstitutedFType = constructArrowType vars tau
+    -- cleanup the added type assumptions for the variables
+    mapM_ removeFromTypeAssumptions newAssumptions
+    -- the returned type is the constructed, substituted arrow type quantified by the type variables we chose in the beginning
+    let substitutedFType = substituteFromEqs unsubstitutedFType eqs
+    return $ QuantifiedType (typeVariables substitutedFType) substitutedFType
 
 instance Typifiable (Expression Core) (FType, TypeEquations) where
   typifier e@(IfThenElse cond e1 e2) = do
@@ -117,6 +161,53 @@ instance Typifiable (Expression Core) (FType, TypeEquations) where
   typifier (Number _) = return (FInteger, [])
   typifier (Boolean _) = return (FBool, [])
 
+-- checks if type assumptions are equivalent
+areEquivalentAssumptions :: TypeAssumption -> TypeAssumption -> Bool
+areEquivalentAssumptions (SimpleAssumption v t) (SimpleAssumption v' t') = v == v' && areEquivalentTypes t t'
+areEquivalentAssumptions (SimpleAssumption v t) (QuantifiedAssumption v' (QuantifiedType vs t')) = null vs && v == v' && areEquivalentTypes t t'
+areEquivalentAssumptions (QuantifiedAssumption v qt) (QuantifiedAssumption v' qt') = v == v' && areEquivalentQuantifiedTypes qt qt'
+areEquivalentAssumptions (QuantifiedAssumption v' (QuantifiedType vs t')) (SimpleAssumption v t) = null vs && v == v' && areEquivalentTypes t t'
+
+-- checks if quantified types are equivalent
+areEquivalentQuantifiedTypes :: QuantifiedType -> QuantifiedType -> Bool
+areEquivalentQuantifiedTypes (QuantifiedType vs t) (QuantifiedType vs' t') = case equalize (zip vs vs') t t' of
+  Nothing -> False
+  Just _ -> True
+
+-- checks if types are same modulo variable renamings
+areEquivalentTypes :: FType -> FType -> Bool
+areEquivalentTypes a b = case equalize [] a b of Nothing -> False; (Just _) -> True
+
+-- tries to make two types equals by performing renamings and, if successful, returns the mapping
+equalize :: [(VariableName, VariableName)] -> FType -> FType -> Maybe [(VariableName, VariableName)]
+equalize _ FInteger FInteger = Just []
+equalize _ FInteger FBool = Nothing
+equalize _ FInteger (TypeVariable _) = Nothing
+equalize _ FInteger (_ :->: _) = Nothing
+equalize _ FBool FBool = Just []
+equalize _ FBool FInteger = Nothing
+equalize _ FBool (TypeVariable _) = Nothing
+equalize _ FBool (_ :->: _) = Nothing
+equalize _ (TypeVariable _) FInteger = Nothing
+equalize _ (TypeVariable _) FBool = Nothing
+equalize mappings (TypeVariable t) (TypeVariable t')
+  | (t, t') `elem` mappings = Just mappings
+  | t `elem` map fst mappings || t' `elem` map snd mappings = Nothing
+  | otherwise = Just ((t, t') : mappings)
+equalize _ (TypeVariable _) (_ :->: _) = Nothing
+equalize _ (_ :->: _) FInteger = Nothing
+equalize _ (_ :->: _) FBool = Nothing
+equalize _ (_ :->: _) (TypeVariable _) = Nothing
+equalize mappings (t1 :->: t2) (t3 :->: t4) = do
+  mappings' <- equalize mappings t1 t3
+  equalize mappings' t2 t4
+
+typeVariables :: FType -> [VariableName]
+typeVariables FBool = []
+typeVariables FInteger = []
+typeVariables (TypeVariable t) = [t]
+typeVariables (a :->: b) = typeVariables a ++ typeVariables b
+
 lookupAssumption :: VariableName -> TypeAssumptions -> Maybe TypeAssumption
 lookupAssumption _ [] = Nothing
 lookupAssumption v (a : as)
@@ -125,6 +216,12 @@ lookupAssumption v (a : as)
   where
     matches (SimpleAssumption v' _) = v == v'
     matches (QuantifiedAssumption v' _) = v == v'
+
+addToTypeAssumptions :: TypeAssumption -> Typifier ()
+addToTypeAssumptions a = assumptions %= (a :)
+
+removeFromTypeAssumptions :: TypeAssumption -> Typifier ()
+removeFromTypeAssumptions a = assumptions %= delete a
 
 getNewTypeVar :: Typifier VariableName
 getNewTypeVar = do
@@ -205,6 +302,13 @@ substitute _ _ c = c
 -- substitute type given by first argument by type given by second argument in both sides of third argument
 substituteEq :: FType -> FType -> TypeEquation -> TypeEquation
 substituteEq a b (c :=: d) = substitute a b c :=: substitute a b d
+
+-- substitute type variables in type given by first argument by the definitions given by the type equations in the second argument
+substituteFromEqs :: FType -> TypeEquations -> FType
+substituteFromEqs = foldr substituteFromEq
+  where
+    substituteFromEq (TypeVariable x :=: tau') tau = substitute (TypeVariable x) tau' tau
+    substituteFromEq _ tau = tau
 
 throwError :: String -> Typifier a
 throwError s = throwE $ "Error during typification: " ++ s
