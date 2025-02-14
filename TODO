@@ -1,8 +1,11 @@
-for 1.0.0.0:
-- implement type system
+TODO before presentation:
+- nicer outputs, more pretty printing, especially typifier
+- presentation slides
+
 stretch goal:
 for 1.1.0.0:
 - investigate feasibility of eliminating precompiled heap from the code generator using AddDef command
 - investigate feasibility of eliminating hardcoded operator-code from code generator
+- investigate feasibility of rewriting again after typification to reduce instruction set even more
 for 1.2.0.0:
 - investigate higher order functions: is this currently possible? why/why not? how easy to implement?

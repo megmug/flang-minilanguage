@@ -1,10 +1,10 @@
 {-# LANGUAGE DataKinds #-}
+{-# HLINT ignore "Avoid lambda using `infix`" #-}
+{-# HLINT ignore "Avoid lambda" #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
-
-{-# HLINT ignore "Avoid lambda using `infix`" #-}
-{-# HLINT ignore "Avoid lambda" #-}
 
 module Typifier where
 
@@ -13,8 +13,30 @@ import Control.Lens.Operators ((.=))
 import Control.Monad (replicateM)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
-import Data.List (delete, nub, uncons)
-import SyntaxTree (Definition (Definition), Expression (Application, Boolean, Conjunction, Difference, Equality, IfThenElse, LogicalNegation, Number, Product, Quotient, Smaller, Sum, Variable), PrettyPrintable (prettyPrint), Program, Stage (Core), VariableName)
+import Data.List (delete, groupBy, nub, sortBy, uncons)
+import SyntaxTree
+  ( Definition (Definition),
+    Expression
+      ( Application,
+        Boolean,
+        Conjunction,
+        Difference,
+        Equality,
+        IfThenElse,
+        LogicalNegation,
+        Number,
+        Product,
+        Quotient,
+        Smaller,
+        Sum,
+        Variable
+      ),
+    PrettyPrintable (prettyPrint),
+    Program (Program),
+    Stage (Core),
+    VariableName,
+    freeVariablesInDef,
+  )
 
 data TypifierState = TypifierState TypeAssumptions VariableStream
 
@@ -56,25 +78,49 @@ class Typifiable a b where
 
 {- Typifier for programs, according to an adaptation of KFPTS iterative typification -}
 instance Typifiable (Program Core) FType where
-  -- the type assumptions include an assumption for every predefined operator - for example: '*' :: Integer -> Integer -> Integer
-
-  -- we start by grouping the definitions into mutually recursive sets of functions
-
-  -- we typify these mutually recursive sets in topological order
-
-  -- we check if we obtained a type for the main function, and if that type is consistent with F's assumptions (must be Bool or Integer)
-  -- if it is, we return that type
-  -- it it isn't, typification fails
-
-  -- TODO: this must be implemented correctly, for now it just returns a default value to make the compiler pipeline work
-  typifier _ = return FInteger
+  typifier (Program defs) = do
+    -- the type assumptions include an assumption for every predefined operator - for example: '*' :: Integer -> Integer -> Integer
+    let assumptionsForPredefinedFuncs =
+          [ SimpleAssumption "&" (FBool :->: (FBool :->: FBool)),
+            SimpleAssumption "¬" (FBool :->: FBool),
+            SimpleAssumption "<" (FInteger :->: (FInteger :->: FBool)),
+            QuantifiedAssumption "=" (QuantifiedType ["a"] $ TypeVariable "a" :->: (TypeVariable "a" :->: FBool)),
+            SimpleAssumption "-" (FInteger :->: (FInteger :->: FInteger)),
+            SimpleAssumption "+" (FInteger :->: (FInteger :->: FInteger)),
+            SimpleAssumption "/" (FInteger :->: (FInteger :->: FInteger)),
+            SimpleAssumption "*" (FInteger :->: (FInteger :->: FInteger))
+          ]
+    mapM_ addToTypeAssumptions assumptionsForPredefinedFuncs
+    -- we start by grouping the definitions into mutually recursive sets of functions
+    let groups = topologicallySortedPartitioning defs isUsedBy
+    -- we typify these mutually recursive sets in topological order
+    defsTypes <- do
+      let typifyAndAdd definitions =
+            ( do
+                as <- typifier definitions
+                mapM_ addToTypeAssumptions as
+                return as
+            )
+      ass <- traverse typifyAndAdd groups
+      return $ concat ass
+    mapM_ addToTypeAssumptions defsTypes
+    -- we check if we obtained a type for the main function, and if that type is consistent with F's assumptions (must be Bool or Integer)
+    -- if it is, we return that type
+    -- it it isn't, typification fails
+    programTypes <- use assumptions
+    case lookupAssumption "main" programTypes of
+      Nothing -> throwError "program missing main definition!"
+      Just t
+        | areEquivalentAssumptions t (SimpleAssumption "main" FInteger) -> return FInteger
+        | areEquivalentAssumptions t (SimpleAssumption "main" FBool) -> return FBool
+        | otherwise -> throwError $ "main definition is of too general hence invalid type: " ++ show t
 
 {- This assumes that defs are a mutually recursive set of function definitions
  - it also assumes that any type assumptions from externally dependended upon functions (besides the ones in the mutually recursive set defs) are already established
  -}
-instance Typifiable [Definition Core] [TypeAssumption] where
+instance Typifiable [Definition Core] TypeAssumptions where
   typifier defs = do
-    -- at the beginning, create the most general assumptions for our mutually recursive functions and refine them recursively 
+    -- at the beginning, create the most general assumptions for our mutually recursive functions and refine them recursively
     let toFunctionName (Definition f _ _) = f
     let functionNames = map toFunctionName defs
     newVars <- replicateM (length defs) getNewTypeVar
@@ -82,8 +128,8 @@ instance Typifiable [Definition Core] [TypeAssumption] where
     let initAssumptions = map (\(f, v) -> QuantifiedAssumption f (QuantifiedType [v] (TypeVariable v))) entries
     typifier' initAssumptions functionNames
     where
-      {- the recursion/iteration happens here - it is a fixed point iteration until the producedAssumptions are equivalent to the preAssumptions 
-       - since iterative typification in this form undecidable, this might not terminate for some programs 
+      {- the recursion/iteration happens here - it is a fixed point iteration until the producedAssumptions are equivalent to the preAssumptions
+       - since iterative typification in this form undecidable, this might not terminate for some programs
        -}
       typifier' preAssumptions funNames = do
         mapM_ addToTypeAssumptions preAssumptions
@@ -161,6 +207,44 @@ instance Typifiable (Expression Core) (FType, TypeEquations) where
   typifier (Number _) = return (FInteger, [])
   typifier (Boolean _) = return (FBool, [])
 
+-- according to the given relation on type a, calculate an equivalence relation that defines the partitioning
+-- this partitioning is then sorted by the reflexive-transitive closure of given relation
+topologicallySortedPartitioning :: (Eq a) => [a] -> (a -> a -> Bool) -> [[a]]
+topologicallySortedPartitioning xs r = sortBy (partitionOrdering xs r) $ groupBy (correspondingEquivalenceRelation (reflexiveTransitiveClosure xs r)) xs
+
+-- given a list, a relation on that list, create an ordering on the equivalence classes induced by the correspondingEquivalenceRelation of the reflexive-transitive closure of r
+partitionOrdering :: (Eq a) => [a] -> (a -> a -> Bool) -> ([a] -> [a] -> Ordering)
+partitionOrdering xs r as bs
+  | as == bs = EQ
+  | or [reflexiveTransitiveClosure xs r a b | a <- as, b <- bs] = LT
+  | otherwise = GT
+
+-- calculates the equivalence relation that results from disarding any pairs which are not symmetrically in relation to each other
+-- assumes that the relation is transitive to begin with
+correspondingEquivalenceRelation :: (Eq a) => (a -> a -> Bool) -> (a -> a -> Bool)
+correspondingEquivalenceRelation r a b = a == b || (a `r` b && b `r` a)
+
+-- calculate the reflexive-transitive closure of r on the set xs
+reflexiveTransitiveClosure :: (Eq a) => [a] -> (a -> a -> Bool) -> (a -> a -> Bool)
+reflexiveTransitiveClosure xs r = tuplesToRelation $ fixedPoint expandedSet (nub $ [(a, a) | a <- xs] ++ relationToTuples xs r)
+  where
+    expandedSet ts = [(a, b) | a <- xs, b <- xs, x <- xs, (a, b) `elem` ts || ((a, x) `elem` ts && (x, b) `elem` ts)]
+
+fixedPoint :: (Eq a) => (a -> a) -> a -> a
+fixedPoint f a = let b = f a in if a == b then b else fixedPoint f b
+
+-- returns true iff function definition on left side is used (referenced) by right side
+isUsedBy :: Definition Core -> Definition Core -> Bool
+isUsedBy (Definition f _ _) def2 = f `elem` freeVariablesInDef def2
+
+-- creates a list of tuples from a list and a relation on that list
+relationToTuples :: [a] -> (a -> a -> Bool) -> [(a, a)]
+relationToTuples xs r = [(a, b) | a <- xs, b <- xs, a `r` b]
+
+-- creates a relation from a list of tuples
+tuplesToRelation :: (Eq a) => [(a, a)] -> (a -> a -> Bool)
+tuplesToRelation xs a b = (a, b) `elem` xs
+
 -- checks if type assumptions are equivalent
 areEquivalentAssumptions :: TypeAssumption -> TypeAssumption -> Bool
 areEquivalentAssumptions (SimpleAssumption v t) (SimpleAssumption v' t') = v == v' && areEquivalentTypes t t'
@@ -206,7 +290,7 @@ typeVariables :: FType -> [VariableName]
 typeVariables FBool = []
 typeVariables FInteger = []
 typeVariables (TypeVariable t) = [t]
-typeVariables (a :->: b) = typeVariables a ++ typeVariables b
+typeVariables (a :->: b) = nub $ typeVariables a ++ typeVariables b
 
 lookupAssumption :: VariableName -> TypeAssumptions -> Maybe TypeAssumption
 lookupAssumption _ [] = Nothing
