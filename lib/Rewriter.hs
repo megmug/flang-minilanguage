@@ -116,6 +116,7 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
     return (Equality e1' e2', defs1 ++ defs2)
+  -- eliminate "minus e" by using "0 - e"
   rewriter (Minus e) = do
     (e', defs) <- rewriter e
     return (Difference (Number 0) e', defs)
