@@ -2,7 +2,6 @@ TODO before presentation:
 - nicer outputs, more pretty printing, especially typifier
 - provide simple README
 - more tests for typifier specifically
-- presentation slides
 - make typifier check for arrow-type-return-value in function (which machine doesn't support)
 stretch goal:
 for 1.1.0.0:
