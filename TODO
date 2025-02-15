@@ -3,7 +3,7 @@ TODO before presentation:
 - provide simple README
 - more tests for typifier specifically
 - presentation slides
-
+- make typifier check for arrow-type-return-value in function (which machine doesn't support)
 stretch goal:
 for 1.1.0.0:
 - investigate feasibility of eliminating precompiled heap from the code generator using AddDef command
