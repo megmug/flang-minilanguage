@@ -95,7 +95,7 @@ getObject :: (Monad m) => HeapAddress -> Computation m Object
 getObject a = do
   h <- use heap
   case M.lookup a h of
-    Nothing -> throwError $ "heapGetObj: address " ++ show a ++ " out of range!"
+    Nothing -> throwError $ "getObj: address " ++ show a ++ " out of range!"
     {- In this case we recurse until the last indirection is resolved - this will recurse indefinitely in case there is a loop in the graph! -}
     Just o -> case o of
       (IND h') -> getObject h'
