@@ -1,4 +1,4 @@
-import HelperLib (flangTokenizeAndPrint)
+import MainLib (flangTokenizeAndPrint)
 
 isDebugMode :: Bool
 isDebugMode = False

@@ -1,8 +1,8 @@
 module IntegrationSpec where
 
 import Data.Either (isLeft)
-import HelperLib (testRun)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
+import TestLib (testRun)
 
 ackermannDef :: String
 ackermannDef = "ack n m = if n == 0 then m + 1 else if m == 0 then ack (n - 1) 1 else ack (n - 1) (ack n (m - 1));"

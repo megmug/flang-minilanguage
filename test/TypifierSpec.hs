@@ -1,8 +1,8 @@
 module TypifierSpec where
 
 import Data.Either (isLeft)
-import HelperLib (testTypify)
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
+import TestLib (testTypify)
 import Typifier (MonoType (..), TypeEquation (..), unify)
 
 spec :: Spec

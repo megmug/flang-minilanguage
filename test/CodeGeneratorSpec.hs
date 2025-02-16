@@ -2,9 +2,9 @@ module CodeGeneratorSpec where
 
 import Control.Exception (evaluate)
 import Data.Either (isLeft, isRight)
-import HelperLib (testGenerate)
 import System.Timeout (timeout)
 import Test.Hspec (Spec, describe, expectationFailure, it, shouldSatisfy)
+import TestLib (testGenerate)
 
 spec :: Spec
 spec = do

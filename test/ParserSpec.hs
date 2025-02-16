@@ -3,10 +3,10 @@
 module ParserSpec where
 
 import Data.Either (isRight)
-import HelperLib (testParse)
 import Parser (ParseResult)
 import SyntaxTree (Expression (..), LocalDefinition (LocalDefinition), Program, Stage (Raw))
 import Test.Hspec (Spec, describe, it, shouldBe, shouldSatisfy)
+import TestLib (testParse)
 
 spec :: Spec
 spec = describe "parser tests" $ do

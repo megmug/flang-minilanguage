@@ -1,4 +1,4 @@
-import HelperLib (flangRewriteAndPrint)
+import MainLib (flangRewriteAndPrint)
 
 isDebugMode :: Bool
 isDebugMode = False

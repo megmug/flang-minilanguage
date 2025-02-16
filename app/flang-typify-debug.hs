@@ -1,4 +1,4 @@
-import HelperLib (flangTypifyAndPrint)
+import MainLib (flangTypifyAndPrint)
 
 isDebugMode :: Bool
 isDebugMode = True
