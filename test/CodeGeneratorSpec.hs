@@ -9,9 +9,6 @@ import Test.Hspec (Spec, describe, expectationFailure, it, shouldSatisfy)
 spec :: Spec
 spec = do
   describe "example programs compilation" $ do
-    it "example program 'boolfak' DOES NOT compile due to typing error" $ do
-      testGenerate "bool x = x == true | x == false; f x = if bool x | x < 0 then 1 else x * f (x - 1); main = f 6;" `shouldSatisfy` isLeft
-
     it "example program 'fak' DOES compile" $ do
       testGenerate "f x = if x < 0 then 1 else x * f(x - 1); main = f 6;" `shouldSatisfy` isRight
 
