@@ -34,7 +34,7 @@ import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
 import Text.Parsec (ParseError)
 import Token (TokenPos)
 import Tokenizer (tokenize)
-import Typifier (FType, Typifiable (typify))
+import Typifier (MonoType, Typifiable (typify))
 
 {- This library features helper function and IO actions that aid in in code deduplication when utilizing the compiler libraries in the executables or for testing
  - The IO actions are mainly used for the flang-*-executables
@@ -79,7 +79,7 @@ rewriteProgram isDebugMode prog = do
         print prog'
       return prog'
 
-typifyProgram :: Bool -> Program Core -> IO (Program Core, Typifier.FType)
+typifyProgram :: Bool -> Program Core -> IO (Program Core, Typifier.MonoType)
 typifyProgram isDebugMode prog = do
   case typify prog of
     Left err -> fail err
@@ -165,7 +165,7 @@ flangRewriteAndPrint isDebugMode = do
   ast <- flangRewrite isDebugMode
   if isDebugMode then return () else putStrLn $ prettyPrint ast
 
-flangTypify :: Bool -> IO (Program Core, Typifier.FType)
+flangTypify :: Bool -> IO (Program Core, Typifier.MonoType)
 flangTypify isDebugMode = do
   prog <- flangRewrite isDebugMode
   typifyProgram isDebugMode prog
@@ -207,7 +207,7 @@ testRewrite prog = case testParse prog :: ParseResult (Program Raw) of
   Left s -> Left $ show s
   Right p -> rewrite p
 
-testTypify :: String -> Either String (Program Core, Typifier.FType)
+testTypify :: String -> Either String (Program Core, Typifier.MonoType)
 testTypify prog = case testRewrite prog of
   Left s -> Left s
   Right p -> (p,) <$> typify p

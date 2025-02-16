@@ -1,7 +1,6 @@
 module TypifierSpec where
 
-import Test.Hspec (Spec, describe, it, shouldBe)
-import Typifier (FType (..), TypeEquation (..), unify)
+import Typifier (MonoType (..), TypeEquation (..), unify)
 
 spec :: Spec
 spec = do

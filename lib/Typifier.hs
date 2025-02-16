@@ -40,15 +40,15 @@ import SyntaxTree
 
 data TypifierState = TypifierState TypeAssumptions VariableStream
 
-data FType = FBool | FInteger | TypeVariable VariableName | FType :->: FType deriving (Eq, Show)
+data MonoType = FBool | FInteger | TypeVariable VariableName | MonoType :->: MonoType deriving (Eq, Show)
 
-data QuantifiedType = QuantifiedType [VariableName] FType deriving (Eq, Show)
+data PolyType = MonoType MonoType | PolyType [VariableName] MonoType deriving (Eq, Show)
 
-data TypeAssumption = SimpleAssumption VariableName FType | QuantifiedAssumption VariableName QuantifiedType deriving (Eq, Show)
+data TypeAssumption = Assumption VariableName PolyType deriving (Eq, Show)
 
 type TypeAssumptions = [TypeAssumption]
 
-data TypeEquation = FType :=: FType deriving (Eq, Show)
+data TypeEquation = MonoType :=: MonoType deriving (Eq, Show)
 
 type TypeEquations = [TypeEquation]
 
@@ -77,18 +77,18 @@ class Typifiable a b where
   typify e = customTypify e $ TypifierState [] ["_t" ++ show i | i <- [0 ..] :: [Integer]]
 
 {- Typifier for programs, according to an adaptation of KFPTS iterative typification -}
-instance Typifiable (Program Core) FType where
+instance Typifiable (Program Core) MonoType where
   typifier (Program defs) = do
     -- the type assumptions include an assumption for every predefined operator - for example: '*' :: Integer -> Integer -> Integer
     let assumptionsForPredefinedFuncs =
-          [ SimpleAssumption "&" (FBool :->: (FBool :->: FBool)),
-            SimpleAssumption "¬" (FBool :->: FBool),
-            SimpleAssumption "<" (FInteger :->: (FInteger :->: FBool)),
-            QuantifiedAssumption "=" (QuantifiedType ["a"] $ TypeVariable "a" :->: (TypeVariable "a" :->: FBool)),
-            SimpleAssumption "-" (FInteger :->: (FInteger :->: FInteger)),
-            SimpleAssumption "+" (FInteger :->: (FInteger :->: FInteger)),
-            SimpleAssumption "/" (FInteger :->: (FInteger :->: FInteger)),
-            SimpleAssumption "*" (FInteger :->: (FInteger :->: FInteger))
+          [ Assumption "&" $ MonoType (FBool :->: (FBool :->: FBool)),
+            Assumption "¬" $ MonoType (FBool :->: FBool),
+            Assumption "<" $ MonoType (FInteger :->: (FInteger :->: FBool)),
+            Assumption "=" (PolyType ["a"] $ TypeVariable "a" :->: (TypeVariable "a" :->: FBool)),
+            Assumption "-" $ MonoType (FInteger :->: (FInteger :->: FInteger)),
+            Assumption "+" $ MonoType (FInteger :->: (FInteger :->: FInteger)),
+            Assumption "/" $ MonoType (FInteger :->: (FInteger :->: FInteger)),
+            Assumption "*" $ MonoType (FInteger :->: (FInteger :->: FInteger))
           ]
     mapM_ addToTypeAssumptions assumptionsForPredefinedFuncs
     -- we start by grouping the definitions into mutually recursive sets of functions
@@ -111,8 +111,8 @@ instance Typifiable (Program Core) FType where
     case lookupAssumption "main" programTypes of
       Nothing -> throwError "program missing main definition!"
       Just t
-        | areEquivalentAssumptions t (SimpleAssumption "main" FInteger) -> return FInteger
-        | areEquivalentAssumptions t (SimpleAssumption "main" FBool) -> return FBool
+        | areEquivalentAssumptions t (Assumption "main" $ MonoType FInteger) -> return FInteger
+        | areEquivalentAssumptions t (Assumption "main" $ MonoType FBool) -> return FBool
         | otherwise -> throwError $ "main definition is of too general hence invalid type: " ++ show t
 
 {- This assumes that defs are a mutually recursive set of function definitions
@@ -125,7 +125,7 @@ instance Typifiable [Definition Core] TypeAssumptions where
     let functionNames = map toFunctionName defs
     newVars <- replicateM (length defs) getNewTypeVar
     let entries = zip functionNames newVars
-    let initAssumptions = map (\(f, v) -> QuantifiedAssumption f (QuantifiedType [v] (TypeVariable v))) entries
+    let initAssumptions = map (\(f, v) -> Assumption f (PolyType [v] (TypeVariable v))) entries
     typifier' initAssumptions functionNames
     where
       {- the recursion/iteration happens here - it is a fixed point iteration until the producedAssumptions are equivalent to the preAssumptions
@@ -135,7 +135,7 @@ instance Typifiable [Definition Core] TypeAssumptions where
         mapM_ addToTypeAssumptions preAssumptions
         producedTypes <- traverse typifier defs
         mapM_ removeFromTypeAssumptions preAssumptions
-        let producedAssumptions = zipWith QuantifiedAssumption funNames producedTypes
+        let producedAssumptions = zipWith Assumption funNames producedTypes
         let assumptionsAreEquivalent = and $ zipWith areEquivalentAssumptions preAssumptions producedAssumptions
         if assumptionsAreEquivalent
           then return producedAssumptions
@@ -145,11 +145,11 @@ instance Typifiable [Definition Core] TypeAssumptions where
  - in the case of a recursive function, the another typifier will establish this before calling
  - also in the case of a recursive function, the resulting type may not be the final type, iteration may be needed (see program typifier)
  -}
-instance Typifiable (Definition Core) QuantifiedType where
+instance Typifiable (Definition Core) PolyType where
   typifier (Definition _ params e) = do
     -- calculate new type variables for use in the params' type assumptions
     vars <- replicateM (length params) getNewTypeVar
-    let newAssumptions = zipWith (\v a -> SimpleAssumption v (TypeVariable a)) params vars
+    let newAssumptions = zipWith (\v a -> Assumption v (MonoType $ TypeVariable a)) params vars
     mapM_ addToTypeAssumptions newAssumptions
     (tau, eqs) <- typifier e
     let constructArrowType [] t = t; constructArrowType (v : vs) t = TypeVariable v :->: constructArrowType vs t
@@ -158,9 +158,9 @@ instance Typifiable (Definition Core) QuantifiedType where
     mapM_ removeFromTypeAssumptions newAssumptions
     -- the returned type is the constructed, substituted arrow type quantified by the type variables we chose in the beginning
     let substitutedFType = substituteFromEqs unsubstitutedFType eqs
-    return $ QuantifiedType (typeVariables substitutedFType) substitutedFType
+    return $ PolyType (typeVariables substitutedFType) substitutedFType
 
-instance Typifiable (Expression Core) (FType, TypeEquations) where
+instance Typifiable (Expression Core) (MonoType, TypeEquations) where
   typifier e@(IfThenElse cond e1 e2) = do
     (tauCond, eqsCond) <- typifier cond
     (tau1, eqs1) <- typifier e1
@@ -194,9 +194,9 @@ instance Typifiable (Expression Core) (FType, TypeEquations) where
       Nothing -> throwError $ "found no type assumption for variable " ++ v
       {- in this case, we are typifying a simple variable that is not a global function / supercombinator
        - we can just use the stored type assumption directly -}
-      Just (SimpleAssumption _ t) -> return (t, [])
+      Just (Assumption _ (MonoType t)) -> return (t, [])
       -- in this case, we are typifying a supercombinator-instantiation so we need to instantiate the quantified assumption into a new polymorphic type using new type variables
-      Just (QuantifiedAssumption _ (QuantifiedType quantifiedVars t)) -> do
+      Just (Assumption _ (PolyType quantifiedVars t)) -> do
         -- generate as many new variables as needed
         let numVars = length quantifiedVars
         newVars <- replicateM numVars getNewTypeVar
@@ -247,23 +247,25 @@ tuplesToRelation xs a b = (a, b) `elem` xs
 
 -- checks if type assumptions are equivalent
 areEquivalentAssumptions :: TypeAssumption -> TypeAssumption -> Bool
-areEquivalentAssumptions (SimpleAssumption v t) (SimpleAssumption v' t') = v == v' && areEquivalentTypes t t'
-areEquivalentAssumptions (SimpleAssumption v t) (QuantifiedAssumption v' (QuantifiedType vs t')) = null vs && v == v' && areEquivalentTypes t t'
-areEquivalentAssumptions (QuantifiedAssumption v qt) (QuantifiedAssumption v' qt') = v == v' && areEquivalentQuantifiedTypes qt qt'
-areEquivalentAssumptions (QuantifiedAssumption v' (QuantifiedType vs t')) (SimpleAssumption v t) = null vs && v == v' && areEquivalentTypes t t'
+areEquivalentAssumptions (Assumption v t) (Assumption v' t') = v == v' && areEquivalentQuantifiedTypes t t'
 
 -- checks if quantified types are equivalent
-areEquivalentQuantifiedTypes :: QuantifiedType -> QuantifiedType -> Bool
-areEquivalentQuantifiedTypes (QuantifiedType vs t) (QuantifiedType vs' t') = case equalize (zip vs vs') t t' of
+areEquivalentQuantifiedTypes :: PolyType -> PolyType -> Bool
+areEquivalentQuantifiedTypes (PolyType vs t) (PolyType vs' t') = case equalize (zip vs vs') t t' of
   Nothing -> False
   Just _ -> True
+areEquivalentQuantifiedTypes (MonoType t) (MonoType t') = case equalize [] t t' of
+  Nothing -> False
+  Just _ -> True
+areEquivalentQuantifiedTypes (MonoType t) (PolyType vs t') = null vs && areEquivalentQuantifiedTypes (MonoType t) (MonoType t')
+areEquivalentQuantifiedTypes (PolyType vs t) (MonoType t') = null vs && areEquivalentQuantifiedTypes (MonoType t) (MonoType t')
 
 -- checks if types are same modulo variable renamings
-areEquivalentTypes :: FType -> FType -> Bool
+areEquivalentTypes :: MonoType -> MonoType -> Bool
 areEquivalentTypes a b = case equalize [] a b of Nothing -> False; (Just _) -> True
 
 -- tries to make two types equals by performing renamings and, if successful, returns the mapping
-equalize :: [(VariableName, VariableName)] -> FType -> FType -> Maybe [(VariableName, VariableName)]
+equalize :: [(VariableName, VariableName)] -> MonoType -> MonoType -> Maybe [(VariableName, VariableName)]
 equalize _ FInteger FInteger = Just []
 equalize _ FInteger FBool = Nothing
 equalize _ FInteger (TypeVariable _) = Nothing
@@ -286,7 +288,7 @@ equalize mappings (t1 :->: t2) (t3 :->: t4) = do
   mappings' <- equalize mappings t1 t3
   equalize mappings' t2 t4
 
-typeVariables :: FType -> [VariableName]
+typeVariables :: MonoType -> [VariableName]
 typeVariables FBool = []
 typeVariables FInteger = []
 typeVariables (TypeVariable t) = [t]
@@ -298,8 +300,7 @@ lookupAssumption v (a : as)
   | matches a = Just a
   | otherwise = lookupAssumption v as
   where
-    matches (SimpleAssumption v' _) = v == v'
-    matches (QuantifiedAssumption v' _) = v == v'
+    matches (Assumption v' _) = v == v'
 
 addToTypeAssumptions :: TypeAssumption -> Typifier ()
 addToTypeAssumptions a = assumptions %= (a :)
@@ -367,28 +368,28 @@ applySolveUnificationRule :: TypeEquation -> TypeEquations -> TypeEquations
 applySolveUnificationRule (a@(TypeVariable _) :=: b) eqs | not $ a `occursIn` b = map (substituteEq a b) eqs
 applySolveUnificationRule _ eqs = eqs
 
-isTypeVariable :: FType -> Bool
+isTypeVariable :: MonoType -> Bool
 isTypeVariable (TypeVariable _) = True
 isTypeVariable _ = False
 
 -- check if left side occurs in right side
-occursIn :: FType -> FType -> Bool
+occursIn :: MonoType -> MonoType -> Bool
 occursIn a b | a == b = True
 occursIn a (b :->: c) = a `occursIn` b || a `occursIn` c
 occursIn _ _ = False
 
 -- substitute type given by first argument by type given by second argument in third argument
-substitute :: FType -> FType -> FType -> FType
+substitute :: MonoType -> MonoType -> MonoType -> MonoType
 substitute a b c | a == c = b
 substitute a b (c :->: d) = substitute a b c :->: substitute a b d
 substitute _ _ c = c
 
 -- substitute type given by first argument by type given by second argument in both sides of third argument
-substituteEq :: FType -> FType -> TypeEquation -> TypeEquation
+substituteEq :: MonoType -> MonoType -> TypeEquation -> TypeEquation
 substituteEq a b (c :=: d) = substitute a b c :=: substitute a b d
 
 -- substitute type variables in type given by first argument by the definitions given by the type equations in the second argument
-substituteFromEqs :: FType -> TypeEquations -> FType
+substituteFromEqs :: MonoType -> TypeEquations -> MonoType
 substituteFromEqs = foldr substituteFromEq
   where
     substituteFromEq (TypeVariable x :=: tau') tau = substitute (TypeVariable x) tau' tau
