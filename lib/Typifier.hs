@@ -3,6 +3,7 @@
 {-# HLINT ignore "Avoid lambda" #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# OPTIONS_GHC -Wno-unrecognised-pragmas #-}
 
@@ -10,7 +11,7 @@ module Typifier where
 
 import Control.Lens (use, (%=))
 import Control.Lens.Operators ((.=))
-import Control.Monad (replicateM)
+import Control.Monad (replicateM, when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
 import Data.List (delete, groupBy, nub, sortBy, uncons)
@@ -21,9 +22,12 @@ import SyntaxTree
         Boolean,
         Conjunction,
         Difference,
+        Disjunction,
         Equality,
         IfThenElse,
+        Let,
         LogicalNegation,
+        Minus,
         Number,
         Product,
         Quotient,
@@ -31,11 +35,14 @@ import SyntaxTree
         Sum,
         Variable
       ),
+    LocalDefinition (LocalDefinition),
     PrettyPrintable (prettyPrint),
     Program (Program),
-    Stage (Core),
+    Stage (Raw),
     VariableName,
     freeVariablesInDef,
+    hasConflictingLetBindings,
+    topologicallySort,
   )
 
 data TypifierState = TypifierState TypeAssumptions VariableStream
@@ -77,7 +84,7 @@ class Typifiable a b where
   typify e = customTypify e $ TypifierState [] ["_t" ++ show i | i <- [0 ..] :: [Integer]]
 
 {- Typifier for programs, according to an adaptation of KFPTS iterative typification -}
-instance Typifiable (Program Core) MonoType where
+instance Typifiable (Program Raw) MonoType where
   typifier (Program defs) = do
     -- the type assumptions include an assumption for every predefined operator - for example: '*' :: Integer -> Integer -> Integer
     let assumptionsForPredefinedFuncs =
@@ -88,7 +95,9 @@ instance Typifiable (Program Core) MonoType where
             Assumption "-" $ MonoType (FInteger :->: (FInteger :->: FInteger)),
             Assumption "+" $ MonoType (FInteger :->: (FInteger :->: FInteger)),
             Assumption "/" $ MonoType (FInteger :->: (FInteger :->: FInteger)),
-            Assumption "*" $ MonoType (FInteger :->: (FInteger :->: FInteger))
+            Assumption "*" $ MonoType (FInteger :->: (FInteger :->: FInteger)),
+            Assumption "u-" $ MonoType (FInteger :->: FInteger),
+            Assumption "|" $ MonoType (FBool :->: (FBool :->: FBool))
           ]
     mapM_ addToTypeAssumptions assumptionsForPredefinedFuncs
     -- we start by grouping the definitions into mutually recursive sets of functions
@@ -118,7 +127,7 @@ instance Typifiable (Program Core) MonoType where
 {- This assumes that defs are a mutually recursive set of function definitions
  - it also assumes that any type assumptions from externally dependended upon functions (besides the ones in the mutually recursive set defs) are already established
  -}
-instance Typifiable [Definition Core] TypeAssumptions where
+instance Typifiable [Definition Raw] TypeAssumptions where
   typifier defs = do
     -- at the beginning, create the most general assumptions for our mutually recursive functions and refine them recursively
     let toFunctionName (Definition f _ _) = f
@@ -145,7 +154,7 @@ instance Typifiable [Definition Core] TypeAssumptions where
  - in the case of a recursive function, the another typifier will establish this before calling
  - also in the case of a recursive function, the resulting type may not be the final type, iteration may be needed (see program typifier)
  -}
-instance Typifiable (Definition Core) PolyType where
+instance Typifiable (Definition Raw) PolyType where
   typifier (Definition _ params e) = do
     -- calculate new type variables for use in the params' type assumptions
     vars <- replicateM (length params) getNewTypeVar
@@ -160,7 +169,7 @@ instance Typifiable (Definition Core) PolyType where
     let substitutedFType = substituteFromEqs unsubstitutedFType eqs
     return $ PolyType (typeVariables substitutedFType) substitutedFType
 
-instance Typifiable (Expression Core) (MonoType, TypeEquations) where
+instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
   typifier e@(IfThenElse cond e1 e2) = do
     (tauCond, eqsCond) <- typifier cond
     (tau1, eqs1) <- typifier e1
@@ -206,6 +215,33 @@ instance Typifiable (Expression Core) (MonoType, TypeEquations) where
         return (subsitutedType, [])
   typifier (Number _) = return (FInteger, [])
   typifier (Boolean _) = return (FBool, [])
+  typifier (Let defs e) = do
+    -- if there are conflicting definitions, throw error
+    when (hasConflictingLetBindings defs) $ throwError $ "conflicting bindings detected in " ++ prettyPrint defs ++ "!"
+    -- topologically sort definitions and sort them in order
+    case topologicallySort defs of
+      Left s -> throwError s
+      Right [] -> typifier e
+      Right sortedDefs -> do
+        let localDefTypifier (LocalDefinition v expr) =
+              ( do
+                  (localDefType, eqs) <- typifier expr
+                  let newDefAssumption = Assumption v (MonoType localDefType)
+                  addToTypeAssumptions newDefAssumption
+                  return (newDefAssumption, eqs)
+              )
+        res <- traverse localDefTypifier sortedDefs
+        -- add newly generated assumptions, typify e and remove them again
+        let (innerAssumptions, innerEqs) = unzip res
+        (eType, eEqs) <- typifier e
+        mapM_ removeFromTypeAssumptions innerAssumptions
+        -- the resulting equations are all equations for the inner bindings + the equations for the expression itself
+        let newEqs = concat innerEqs ++ eEqs
+        case unify newEqs of
+          Nothing -> throwError $ "error unifying type equations " ++ show newEqs ++ " for expression " ++ prettyPrint e
+          Just newUnifiedEqs -> return (eType, newUnifiedEqs)
+  typifier (Disjunction e1 e2) = typifier (Application (Application (Variable "|") e1) e2)
+  typifier (Minus e) = typifier (Application (Variable "u-") e)
 
 -- according to the given relation on type a, calculate an equivalence relation that defines the partitioning
 -- this partitioning is then sorted by the reflexive-transitive closure of given relation
@@ -234,7 +270,7 @@ fixedPoint :: (Eq a) => (a -> a) -> a -> a
 fixedPoint f a = let b = f a in if a == b then b else fixedPoint f b
 
 -- returns true iff function definition on left side is used (referenced) by right side
-isUsedBy :: Definition Core -> Definition Core -> Bool
+isUsedBy :: Definition Raw -> Definition Raw -> Bool
 isUsedBy (Definition f _ _) def2 = f `elem` freeVariablesInDef def2
 
 -- creates a list of tuples from a list and a relation on that list

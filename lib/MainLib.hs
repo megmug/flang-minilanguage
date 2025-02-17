@@ -66,18 +66,7 @@ parseTokens isDebugMode ts = do
         print ast
       return ast
 
-rewriteProgram :: Bool -> Program Raw -> IO (Program Core)
-rewriteProgram isDebugMode prog = do
-  case rewrite prog of
-    Left err -> fail err
-    Right prog' -> do
-      when isDebugMode $ do
-        putStrLn ""
-        putStrLn "Successfully rewritten program:"
-        print prog'
-      return prog'
-
-typifyProgram :: Bool -> Program Core -> IO (Program Core, Typifier.MonoType)
+typifyProgram :: Bool -> Program Raw -> IO (Program Raw, MonoType)
 typifyProgram isDebugMode prog = do
   case typify prog of
     Left err -> fail err
@@ -88,10 +77,21 @@ typifyProgram isDebugMode prog = do
         print t
       return (prog, t)
 
+rewriteProgram :: Bool -> Program Raw -> MonoType -> IO (Program Core, MonoType)
+rewriteProgram isDebugMode prog t = do
+  case rewrite prog of
+    Left err -> fail err
+    Right prog' -> do
+      when isDebugMode $ do
+        putStrLn ""
+        putStrLn "Successfully rewritten program:"
+        print prog'
+      return (prog', t)
+
 -- This is a helper IO action to share code in the different main executables
 -- it generates code for a given program syntax tree, optionally outputting debugging information
-generateProgram :: Bool -> Program Core -> IO (HeapEnvironment, Code)
-generateProgram isDebugMode ast = do
+generateProgram :: Bool -> Program Core -> MonoType -> IO (HeapEnvironment, Code, MonoType)
+generateProgram isDebugMode ast t = do
   case generate ast of
     Left err -> fail err
     Right (heap, prog) -> do
@@ -102,7 +102,7 @@ generateProgram isDebugMode ast = do
         print heap
         putStrLn "Code:"
         print prog
-      return (heap, prog)
+      return (heap, prog, t)
 
 runIO :: Bool -> Computation IO Object
 runIO isDebugMode = do
@@ -153,19 +153,9 @@ flangParseAndPrint isDebugMode = do
   ast <- flangParse isDebugMode
   if isDebugMode then return () else putStrLn $ prettyPrint ast
 
-flangRewrite :: Bool -> IO (Program Core)
-flangRewrite isDebugMode = do
-  ast <- flangParse isDebugMode
-  rewriteProgram isDebugMode ast
-
-flangRewriteAndPrint :: Bool -> IO ()
-flangRewriteAndPrint isDebugMode = do
-  ast <- flangRewrite isDebugMode
-  if isDebugMode then return () else putStrLn $ prettyPrint ast
-
-flangTypify :: Bool -> IO (Program Core, Typifier.MonoType)
+flangTypify :: Bool -> IO (Program Raw, MonoType)
 flangTypify isDebugMode = do
-  prog <- flangRewrite isDebugMode
+  prog <- flangParse isDebugMode
   typifyProgram isDebugMode prog
 
 flangTypifyAndPrint :: Bool -> IO ()
@@ -173,10 +163,20 @@ flangTypifyAndPrint isDebugMode = do
   (_, t) <- flangTypify isDebugMode
   if isDebugMode then return () else print t
 
-flangCompile :: Bool -> IO (HeapEnvironment, Code)
+flangRewrite :: Bool -> IO (Program Core, MonoType)
+flangRewrite isDebugMode = do
+  (ast, t) <- flangTypify isDebugMode
+  rewriteProgram isDebugMode ast t
+
+flangRewriteAndPrint :: Bool -> IO ()
+flangRewriteAndPrint isDebugMode = do
+  (ast, _) <- flangRewrite isDebugMode
+  if isDebugMode then return () else putStrLn $ prettyPrint ast
+
+flangCompile :: Bool -> IO (HeapEnvironment, Code, MonoType)
 flangCompile isDebugMode = do
-  (ast, _) <- flangTypify isDebugMode
-  generateProgram isDebugMode ast
+  (ast, t) <- flangRewrite isDebugMode
+  generateProgram isDebugMode ast t
 
 flangCompileAndPrint :: Bool -> IO ()
 flangCompileAndPrint isDebugMode = do
@@ -185,7 +185,7 @@ flangCompileAndPrint isDebugMode = do
 
 flangRun :: Bool -> IO ()
 flangRun isDebugMode = do
-  (heap, code) <- flangCompile isDebugMode
+  (heap, code, _) <- flangCompile isDebugMode
   runProgramIO isDebugMode heap code
 
 flangRunVMCode :: Bool -> IO ()
