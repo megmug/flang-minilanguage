@@ -108,10 +108,8 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     return (Smaller e1' e2', defs1 ++ defs2)
   -- e1 == e2 <=> (not (e1 < e2)) & (not (e2 < e1))
   rewriter (Equality e1 e2) = rewriter $ Conjunction (LogicalNegation (Smaller e1 e2)) (LogicalNegation (Smaller e2 e1))
-  -- eliminate "minus e" by using "0 - e"
-  rewriter (Minus e) = do
-    (e', defs) <- rewriter e
-    return (Difference (Number 0) e', defs)
+  -- -e == 0 - e
+  rewriter (Minus e) = rewriter (Difference (Number 0) e)
   rewriter (Difference e1 e2) = do
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
