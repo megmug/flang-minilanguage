@@ -53,10 +53,16 @@ class Rewritable a b where
   rewrite :: a -> Either String b
   rewrite e = customRewrite e (RewriterState [])
 
+-- Constant to define if multiplication should be replaced by recursive definition
+replaceMult :: Bool
+replaceMult = False
+
 instance Rewritable (Program Raw) (Program Core) where
-  rewriter (Program defs) = do
-    defs' <- traverse rewriter defs
-    return $ Program $ concat defs'
+  rewriter (Program programDefs) = do
+    let predefinedMultOperation = [Definition "#m" ["a", "b"] (IfThenElse (Smaller (Variable "b") (Number 0)) (Minus (Application (Application (Variable "#m") (Variable "a")) (Minus (Variable "b")))) (IfThenElse (Smaller (Number 0) (Variable "b")) (Sum (Variable "a") (Application (Application (Variable "#m") (Variable "a")) (Difference (Variable "b") (Number 1)))) (Number 0)))]
+    let allDefs = predefinedMultOperation ++ programDefs
+    rewrittenDefs <- traverse rewriter allDefs
+    return $ Program $ concat rewrittenDefs
 
 instance Rewritable (Definition Raw) [Definition Core] where
   rewriter (Definition f params e) = do
@@ -120,10 +126,16 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
     return (Quotient e1' e2', defs1 ++ defs2)
-  rewriter (Product e1 e2) = do
-    (e1', defs1) <- rewriter e1
-    (e2', defs2) <- rewriter e2
-    return (Product e1' e2', defs1 ++ defs2)
+  {- if replaceMult is True, then it is implemented as the following combinator:
+   - #m a b = if b < 0 then - (#m a (-b)) else if 0 < b then a + #m a (b - 1) else 0;
+   -}
+  rewriter (Product e1 e2) =
+    if replaceMult
+      then rewriter (Application (Application (Variable "#m") e1) e2)
+      else do
+        (e1', defs1) <- rewriter e1
+        (e2', defs2) <- rewriter e2
+        return (Product e1' e2', defs1 ++ defs2)
   rewriter (Application e1 e2) = do
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
