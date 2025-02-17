@@ -43,7 +43,7 @@ testRun input = case testGenerate input of
     Nothing -> Left "machine runner crashed because of malformed machine input by code generator"
     Just m -> case runState (runExceptT run) m of
       (Left s, _) -> Left s
-      (Right (VAL _ v), _) -> case t of
+      (Right (VAL v), _) -> case t of
         FInteger -> Right $ show v
         FBool -> Right $ if v == 0 then "false" else "true"
         _ -> Left "expected return type is invalid"

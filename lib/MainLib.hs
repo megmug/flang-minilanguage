@@ -24,7 +24,7 @@ import Machine
     prettyPrintMachineState,
     step,
   )
-import MachineInstruction (FType (FBool, FInteger), Instruction)
+import MachineInstruction (Instruction)
 import Parser (parse)
 import Rewriter (Rewritable (rewrite))
 import SyntaxTree (Program, Stage (..), prettyPrint)
@@ -32,7 +32,7 @@ import System.Environment (getArgs)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
 import Token (TokenPos)
 import Tokenizer (tokenize)
-import Typifier (MonoType, Typifiable (typify))
+import Typifier (MonoType (FBool, FInteger), Typifiable (typify))
 
 {- This library features helper function and IO actions that aid in in code deduplication when utilizing the compiler libraries in the executables or for testing
  - The IO actions are mainly used for the flang-*-executables
@@ -116,16 +116,17 @@ runIO isDebugMode = do
   a <- pop
   getObject a
 
-runProgramIO :: Bool -> [Object] -> [Instruction] -> IO ()
-runProgramIO isDebugMode h prog = case createMachineWithHeap h prog of
+runProgramIO :: Bool -> [Object] -> [Instruction] -> MonoType -> IO ()
+runProgramIO isDebugMode h prog t = case createMachineWithHeap h prog of
   Nothing -> putStrLn "Error running program: Invalid machine code!"
   Just m -> do
     res <- runStateT (runExceptT (runIO isDebugMode)) m
     case res of
       (Left s, _) -> putStr $ "Error running program: " ++ s
-      (Right (VAL t v), _) -> case t of
+      (Right (VAL v), _) -> case t of
         FInteger -> print v
         FBool -> putStr $ if v == 0 then "false" else "true"
+        _ -> putStr "expected return type is invalid"
       (Right o, _) -> putStr $ "Return value is malformed (" ++ show o ++ ")"
 
 getArgsSetBuffering :: IO [String]
@@ -185,12 +186,12 @@ flangCompileAndPrint isDebugMode = do
 
 flangRun :: Bool -> IO ()
 flangRun isDebugMode = do
-  (heap, code, _) <- flangCompile isDebugMode
-  runProgramIO isDebugMode heap code
+  (heap, code, t) <- flangCompile isDebugMode
+  runProgramIO isDebugMode heap code t
 
 flangRunVMCode :: Bool -> IO ()
 flangRunVMCode isDebugMode = do
   args <- getArgsSetBuffering
   input <- readFile (head args)
-  let (heap, prog) = read input :: ([Object], [Instruction])
-  runProgramIO isDebugMode heap prog
+  let (heap, prog, t) = read input :: ([Object], [Instruction], MonoType)
+  runProgramIO isDebugMode heap prog t

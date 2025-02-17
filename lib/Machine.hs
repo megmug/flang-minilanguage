@@ -17,7 +17,6 @@ import MachineInstruction
   ( Arity,
     CodeAddress,
     FOperator (..),
-    FType (..),
     FunctionName,
     HeapAddress,
     Instruction (..),
@@ -52,7 +51,7 @@ type ObjectCounter = Int
 type Heap = M.IntMap Object
 
 data Object
-  = VAL FType Integer
+  = VAL Integer
   | DEF FunctionName Arity CodeAddress
   | APP HeapAddress HeapAddress
   | IND HeapAddress
@@ -184,13 +183,6 @@ overrideObject ha newObject = do
   h <- use heap
   heap .= M.adjust (const newObject) ha h
 
-objType :: (Monad m) => HeapAddress -> Computation m FType
-objType a = do
-  o <- getObject a
-  case o of
-    VAL t _ -> return t
-    _ -> throwError $ "objType: object " ++ show o ++ " isn't of VAL type!"
-
 getStackElement :: (Monad m) => StackAddress -> Computation m StackElement
 getStackElement sa = do
   s <- use stack
@@ -219,8 +211,8 @@ step = do
       a <- address f
       push a
       loadNextInstruction
-    Pushval t n -> do
-      a <- new $ VAL t n
+    Pushval n -> do
+      a <- new $ VAL n
       push a
       loadNextInstruction
     Pushparam n -> do
@@ -260,14 +252,14 @@ step = do
       push top
       obj <- getObject top
       case obj of
-        (VAL _ _) -> loadNextInstruction
+        (VAL _) -> loadNextInstruction
         (DEF _ _ a) -> do
           pc <- use pcounter
           push pc
           jumpTo a
         {- binary operator-}
         (PRE op)
-          | op `elem` [Equals, Smaller, Plus, Minus, Times, Divide, And, Or] -> do
+          | op `elem` [Smaller, Minus, Times, Divide] -> do
               pc <- use pcounter
               push pc
               {- push representation of operator onto stack -}
@@ -336,24 +328,6 @@ step = do
           overrideObject ha (IND top)
       loadNextInstruction
     Operator op -> case op of
-      One -> do
-        operandAddr <- pop
-        opAddr <- pop
-        returnAddr <- pop
-        _ <- pop
-        op' <- getObject opAddr
-        if op' /= PRE Not
-          then throwError "Operator: Type error!"
-          else do
-            push returnAddr
-            {- Logically negate the operand, create resulting VAL on the heap and push result address onto stack -}
-            operandObj <- getObject operandAddr
-            case operandObj of
-              (VAL FBool b) -> do
-                res <- new $ VAL FBool (boolToInteger $ not $ integerToBool b)
-                push res
-              _ -> throwError "Operator: Type error!"
-        loadNextInstruction
       Two -> do
         -- The order of the operands on the stack is 'operator, operand 1, operand 2 <- TOP' (structure established by the subroutine for binary operators)
         operand2Addr <- pop
@@ -367,17 +341,10 @@ step = do
         operand1Obj <- getObject operand1Addr
         operand2Obj <- getObject operand2Addr
         resObj <- case (operand1Obj, operand2Obj, opObj) of
-          (VAL FInteger op1, VAL FInteger op2, PRE Equals) -> return $ VAL FBool $ boolToInteger $ op1 == op2
-          (VAL FBool op1, VAL FBool op2, PRE Equals) -> return $ VAL FBool $ boolToInteger $ op1 == op2
-          (VAL FInteger op1, VAL FInteger op2, PRE Smaller) -> return $ VAL FBool $ boolToInteger $ op1 < op2
-          (VAL FInteger op1, VAL FInteger op2, PRE Plus) -> return $ VAL FInteger $ op1 + op2
-          (VAL FInteger op1, VAL FInteger op2, PRE Minus) -> return $ VAL FInteger $ op1 - op2
-          (VAL FInteger op1, VAL FInteger op2, PRE Times) -> return $ VAL FInteger $ op1 * op2
-          (VAL FInteger op1, VAL FInteger op2, PRE Divide) -> return $ VAL FInteger $ op1 `div` op2
-          -- implementing and as multiplication
-          (VAL FBool op1, VAL FBool op2, PRE And) -> return $ VAL FBool $ op1 * op2
-          -- for Or, addition doesn't quite work, e.g. -1 + 1 = 0
-          (VAL FBool op1, VAL FBool op2, PRE Or) -> return $ VAL FBool $ boolToInteger $ integerToBool op1 || integerToBool op2
+          (VAL op1, VAL op2, PRE Smaller) -> return $ VAL $ boolToInteger $ op1 < op2
+          (VAL op1, VAL op2, PRE Minus) -> return $ VAL $ op1 - op2
+          (VAL op1, VAL op2, PRE Times) -> return $ VAL $ op1 * op2
+          (VAL op1, VAL op2, PRE Divide) -> return $ VAL $ op1 `div` op2
           _ -> throwError "Operator: Type error!"
 
         push returnAddr
@@ -396,7 +363,7 @@ step = do
         -- here we assume that the condObj is already evaluated, since it Operator OpIf is preceded by "Unwind, Call"
         condObj <- getObject condAddr
         resAppAddr <- case condObj of
-          (VAL FBool b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
+          (VAL b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
           otherObj -> throwError $ "Operator: non-boolean value in if-condition: " ++ show otherObj
         resAddr <- add2arg resAppAddr
 

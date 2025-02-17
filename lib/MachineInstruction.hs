@@ -8,30 +8,23 @@ type HeapAddress = Int
 
 type StackAddress = Int
 
-data FType = FInteger | FBool deriving (Eq, Show, Read)
-
 type Arity = Int
 
 data UpdateArg = PredefinedOperator | Arity Int deriving (Eq, Show, Read)
 
-data OperatorArg = One | Two | OpIf deriving (Eq, Show, Read)
+data OperatorArg = Two | OpIf deriving (Eq, Show, Read)
 
 data FOperator
-  = Equals
-  | Smaller
-  | Plus
+  = Smaller
   | Minus
   | Times
   | Divide
-  | And
-  | Or
-  | Not
   | FIf
   deriving (Eq, Show, Read)
 
 data Instruction
   = Pushfun FunctionName
-  | Pushval FType Integer
+  | Pushval Integer
   | Pushparam Int
   | Makeapp
   | Slide Int

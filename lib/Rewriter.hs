@@ -97,25 +97,17 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     (e2', defs2) <- rewriter e2
     return (IfThenElse cond' e1' e2', defsCond ++ defs1 ++ defs2)
   -- eliminate disjunctions by leveraging de-morgan-rule
-  rewriter (Disjunction e1 e2) = do
-    (e1', defs1) <- rewriter e1
-    (e2', defs2) <- rewriter e2
-    return (LogicalNegation $ Conjunction (LogicalNegation e1') (LogicalNegation e2'), defs1 ++ defs2)
-  rewriter (Conjunction e1 e2) = do
-    (e1', defs1) <- rewriter e1
-    (e2', defs2) <- rewriter e2
-    return (Conjunction e1' e2', defs1 ++ defs2)
-  rewriter (LogicalNegation e) = do
-    (e', defs) <- rewriter e
-    return (LogicalNegation e', defs)
+  rewriter (Disjunction e1 e2) = rewriter (LogicalNegation $ Conjunction (LogicalNegation e1) (LogicalNegation e2))
+  -- replace "&" by "*"
+  rewriter (Conjunction e1 e2) = rewriter (Product e1 e2)
+  -- replace logical negation by "< 1"
+  rewriter (LogicalNegation e) = rewriter (Smaller e (Number 1))
   rewriter (Smaller e1 e2) = do
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
     return (Smaller e1' e2', defs1 ++ defs2)
-  rewriter (Equality e1 e2) = do
-    (e1', defs1) <- rewriter e1
-    (e2', defs2) <- rewriter e2
-    return (Equality e1' e2', defs1 ++ defs2)
+  -- e1 == e2 <=> (not (e1 < e2)) & (not (e2 < e1))
+  rewriter (Equality e1 e2) = rewriter $ Conjunction (LogicalNegation (Smaller e1 e2)) (LogicalNegation (Smaller e2 e1))
   -- eliminate "minus e" by using "0 - e"
   rewriter (Minus e) = do
     (e', defs) <- rewriter e
@@ -124,10 +116,8 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
     return (Difference e1' e2', defs1 ++ defs2)
-  rewriter (Sum e1 e2) = do
-    (e1', defs1) <- rewriter e1
-    (e2', defs2) <- rewriter e2
-    return (Sum e1' e2', defs1 ++ defs2)
+  -- a + b == a - (- b)
+  rewriter (Sum e1 e2) = rewriter (Difference e1 (Minus e2))
   rewriter (Quotient e1 e2) = do
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
@@ -142,7 +132,8 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     return (Application e1' e2', defs1 ++ defs2)
   rewriter (Variable v) = return (Variable v, [])
   rewriter (Number n) = return (Number n, [])
-  rewriter (Boolean b) = return (Boolean b, [])
+  -- replace boolean value: True -> 1, False -> 0
+  rewriter (Boolean b) = return (Number $ if b then 1 else 0, [])
 
 {- Helper functions and rewriters -}
 throwError :: String -> Rewriter a

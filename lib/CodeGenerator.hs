@@ -15,21 +15,16 @@ import Control.Monad.Trans.State (State, evalState, get)
 import Data.Foldable (traverse_)
 import Data.List (nub)
 import Data.List.Index (indexed)
-import Machine (Object (DEF), boolToInteger)
+import Machine (Object (DEF))
 import MachineInstruction
   ( Arity,
     FOperator
-      ( And,
-        Divide,
-        Equals,
+      ( Divide,
         FIf,
         Minus,
-        Not,
-        Plus,
         Smaller,
         Times
       ),
-    FType (FBool, FInteger),
     Instruction
       ( Call,
         Halt,
@@ -44,7 +39,7 @@ import MachineInstruction
         Unwind,
         Update
       ),
-    OperatorArg (One, OpIf, Two),
+    OperatorArg (OpIf, Two),
     UpdateArg (Arity, PredefinedOperator),
   )
 import SyntaxTree
@@ -141,13 +136,6 @@ instance Generatable (Program Core) where
            -- These instructions are to evaluate the resulting expression as well, since this is the intended behaviour for if-then-else expressions
            Unwind, --
            Call,
-           Return,
-           -- subroutine for unary operator (address: 20)
-           Pushparam 2,
-           Unwind,
-           Call,
-           Operator One,
-           Update PredefinedOperator,
            Return
          ]
     -- to understand why we need to generate function defs iteratively, see generateDefs
@@ -185,17 +173,6 @@ instance Generatable (Expression Core) where
     code %= (++ [Pushpre FIf, Makeapp, Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-2)
-  -- NOTE: the disjunction or conjunction rule can be optimized by leveraging de-morgan-rule in syntax tree
-  generator (Conjunction e1 e2) = do
-    generator e2
-    posList %= posPlus 1
-    generator e1
-    code %= (++ [Pushpre And, Makeapp, Makeapp])
-    -- cleanup - see Application rule
-    posList %= posPlus (-1)
-  generator (LogicalNegation e) = do
-    generator e
-    code %= (++ [Pushpre Not, Makeapp])
   generator (SyntaxTree.Smaller e1 e2) = do
     generator e2
     posList %= posPlus 1
@@ -203,25 +180,11 @@ instance Generatable (Expression Core) where
     code %= (++ [Pushpre MachineInstruction.Smaller, Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-1)
-  generator (Equality e1 e2) = do
-    generator e2
-    posList %= posPlus 1
-    generator e1
-    code %= (++ [Pushpre Equals, Makeapp, Makeapp])
-    -- cleanup - see Application rule
-    posList %= posPlus (-1)
   generator (Difference e1 e2) = do
     generator e2
     posList %= posPlus 1
     generator e1
     code %= (++ [Pushpre MachineInstruction.Minus, Makeapp, Makeapp])
-    -- cleanup - see Application rule
-    posList %= posPlus (-1)
-  generator (Sum e1 e2) = do
-    generator e2
-    posList %= posPlus 1
-    generator e1
-    code %= (++ [Pushpre Plus, Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-1)
   generator (Quotient e1 e2) = do
@@ -257,9 +220,7 @@ instance Generatable (Expression Core) where
         unless (v `isDefinedIn` funs) $ throwError $ "no such function: " ++ v
         code %= (++ [Pushfun v])
   generator (Number n) = do
-    code %= (++ [Pushval FInteger n])
-  generator (Boolean b) = do
-    code %= (++ [Pushval FBool (boolToInteger b)])
+    code %= (++ [Pushval n])
 
 {--}
 

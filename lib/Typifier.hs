@@ -47,7 +47,7 @@ import SyntaxTree
 
 data TypifierState = TypifierState TypeAssumptions VariableStream
 
-data MonoType = FBool | FInteger | TypeVariable VariableName | MonoType :->: MonoType deriving (Eq, Show)
+data MonoType = FBool | FInteger | TypeVariable VariableName | MonoType :->: MonoType deriving (Eq, Show, Read)
 
 data PolyType = MonoType MonoType | PolyType [VariableName] MonoType deriving (Eq, Show)
 
