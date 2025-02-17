@@ -11,4 +11,21 @@ pkgs.mkShell {
         pkgs.haskellPackages.hspec-discover
 	    pkgs.stack
     ];
+
+    shellHook = ''
+        alias flang-tokenize='stack run flang-tokenize'
+        alias flang-tokenize-debug='stack run flang-tokenize-debug'
+        alias flang-parse='stack run flang-parse'
+        alias flang-parse-debug='stack run flang-parse-debug'
+        alias flang-typify='stack run flang-typify'
+        alias flang-typify-debug='stack run flang-typify-debug'
+        alias flang-rewrite='stack run flang-rewrite'
+        alias flang-rewrite-debug='stack run flang-rewrite-debug'
+        alias flang-generate='stack run flang-generate'
+        alias flang-generate-debug='stack run flang-generate-debug'
+        alias flang-run='stack run flang-run'
+        alias flang-run-debug='stack run flang-run-debug'
+        alias flang-run-vmcode='stack run flang-run-vmcode'
+        alias flang-run-vmcode-debug='stack run flang-run-vmcode-debug'
+    '';
 }

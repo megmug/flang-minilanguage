@@ -7,7 +7,14 @@
 	"settings": {
 		"haskell.manageHLS": "PATH",
 		"direnv.restart.automatic": true,
-		"haskell.sessionLoading": "multipleComponents"
+		"haskell.sessionLoading": "multipleComponents",
+		"terminal.integrated.defaultProfile.linux": "nix-shell",
+		"terminal.integrated.profiles.linux": {
+			"nix-shell": {
+				"path": "nix-shell",
+				"icon": "terminal-bash"
+			}
+		},
 	},
 	"extensions": {
 		"recommendations": [
