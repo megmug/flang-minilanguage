@@ -13,11 +13,11 @@ import Control.Monad (when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
 import Data.List ((\\))
+import GeneralLib (PrettyPrintable (prettyPrint))
 import SyntaxTree
   ( Definition (Definition),
     Expression (..),
     LocalDefinition (LocalDefinition),
-    PrettyPrintable (prettyPrint),
     Program (Program),
     Stage (..),
     VariableName,

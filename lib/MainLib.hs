@@ -13,6 +13,7 @@ import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (runExceptT)
 import Control.Monad.Trans.State (StateT (runStateT), get)
+import GeneralLib (PrettyPrintable (prettyPrint))
 import Machine
   ( Computation,
     Object (VAL),
@@ -26,7 +27,7 @@ import Machine
 import MachineInstruction (Instruction)
 import Parser (parse)
 import Rewriter (Rewritable (rewrite))
-import SyntaxTree (Program, Stage (..), prettyPrint)
+import SyntaxTree (Program, Stage (..))
 import System.Environment (getArgs)
 import System.Exit (exitFailure)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)

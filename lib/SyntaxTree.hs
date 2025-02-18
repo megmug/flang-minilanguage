@@ -7,6 +7,7 @@
 module SyntaxTree where
 
 import Data.List (nub, permutations, subsequences, (\\))
+import GeneralLib (PrettyPrintable (prettyPrint))
 
 {- The stage s is parameterizing an expression to indicate if it is a raw program (directly after parsing), or an already rewritten one
  - This allows simplifying the typifier and code generator, since it essentially hides the unneeded constructers in later compilation stages
@@ -52,9 +53,6 @@ coreToRaw (Difference a b) = Difference (coreToRaw a) (coreToRaw b)
 coreToRaw (Application a b) = Application (coreToRaw a) (coreToRaw b)
 coreToRaw (Variable name) = Variable name
 coreToRaw (Number n) = Number n
-
-class PrettyPrintable t where
-  prettyPrint :: t -> String
 
 instance PrettyPrintable (Program s) where
   prettyPrint (Program defs) = prettyPrint defs

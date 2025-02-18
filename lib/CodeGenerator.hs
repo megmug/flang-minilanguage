@@ -14,6 +14,7 @@ import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
 import Data.Foldable (traverse_)
 import Data.List.Index (indexed)
+import GeneralLib (PrettyPrintable (prettyPrint))
 import Machine (Object (DEF))
 import MachineInstruction
   ( Arity,
@@ -45,7 +46,6 @@ import SyntaxTree
     Program (..),
     Stage (Core),
     VariableName,
-    prettyPrint,
   )
 
 {- The code generator maintains a state that carries:

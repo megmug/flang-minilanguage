@@ -15,6 +15,7 @@ import Control.Monad (replicateM, when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
 import Data.List (delete, groupBy, nub, sortBy, uncons)
+import GeneralLib (PrettyPrintable (prettyPrint))
 import SyntaxTree
   ( Definition (Definition),
     Expression
@@ -36,7 +37,6 @@ import SyntaxTree
         Variable
       ),
     LocalDefinition (LocalDefinition),
-    PrettyPrintable (prettyPrint),
     Program (Program),
     Stage (Raw),
     VariableName,
