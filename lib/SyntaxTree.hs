@@ -6,7 +6,7 @@
 
 module SyntaxTree where
 
-import Data.List (nub, permutations, subsequences, (\\))
+import Data.List (nub, (\\))
 import GeneralLib (PrettyPrintable (prettyPrint))
 
 {- The stage s is parameterizing an expression to indicate if it is a raw program (directly after parsing), or an already rewritten one
@@ -191,25 +191,5 @@ hasConflictingLetBindings xs = projectVars /= nub projectVars
     leftSide (LocalDefinition v _) = v
     projectVars = map leftSide xs
 
-isIndependentFrom :: LocalDefinition -> [LocalDefinition] -> Bool
-isIndependentFrom def = not . any (isDependentOn def)
-
 isDependentOn :: LocalDefinition -> LocalDefinition -> Bool
 isDependentOn (LocalDefinition _ e) (LocalDefinition v _) = v `elem` freeVariables e
-
-extendRelation :: (a -> a -> Bool) -> a -> a -> [a] -> Bool
-extendRelation r a b [] = a `r` b
-extendRelation r a b (x : xs) = (a `r` x) && extendRelation r x b xs
-
-transitiveExtension :: (a -> a -> Bool) -> [a] -> (a -> a -> Bool)
-transitiveExtension r xs a b = let allOrderedSubsequences = concatMap permutations (subsequences xs) in any (extendRelation r a b) allOrderedSubsequences
-
-{- perform a topological sort of the local definitions (in a let binding) failing if the bindings are recursive -}
-topologicallySort :: [LocalDefinition] -> Either String [LocalDefinition]
-topologicallySort [] = Right []
-topologicallySort (x : xs)
-  | transitiveExtension isDependentOn (x : xs) x x = Left $ "local definitions " ++ prettyPrint (x : xs) ++ " are recursive!"
-  | x `isIndependentFrom` xs = do
-      sortedDefs <- topologicallySort xs
-      return $ x : sortedDefs
-  | otherwise = topologicallySort $ xs ++ [x]

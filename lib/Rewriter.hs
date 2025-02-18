@@ -13,7 +13,7 @@ import Control.Monad (when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
 import Data.List ((\\))
-import GeneralLib (PrettyPrintable (prettyPrint))
+import GeneralLib (PrettyPrintable (prettyPrint), topologicallySort)
 import SyntaxTree
   ( Definition (Definition),
     Expression (..),
@@ -26,9 +26,9 @@ import SyntaxTree
     coreToRaw,
     freeVariables,
     hasConflictingLetBindings,
+    isDependentOn,
     substitute,
     substituteDefs,
-    topologicallySort,
   )
 
 newtype RewriterState = RewriterState GlobalFunctionList
@@ -73,12 +73,12 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     -- eliminate possible inner let-definitions in e
     (e', eDefs) <- rewriter e :: Rewriter (Expression Core, [Definition Core])
     -- now, create global function definitions and rewrite e' such that the let definitions can be eliminated
-    case topologicallySort defs of
+    case topologicallySort defs isDependentOn of
       -- recursive binding detected
-      Left s -> throwError s
-      Right [] -> return (e', eDefs)
+      Nothing -> throwError $ "unsupported: local definitions '" ++ prettyPrint defs ++ "' are recursive!"
+      Just [] -> return (e', eDefs)
       -- otherwise, we can rewrite to eliminate the bindings
-      Right (def@(LocalDefinition v bindingExpr) : sortedDefs) -> do
+      Just (def@(LocalDefinition v bindingExpr) : sortedDefs) -> do
         (bindingExpr', bindingDefs) <- rewriter bindingExpr
         gFuncNames <- use globalFuncs
         -- candidates for the parameters that should appear in the new function definition are any variables that are free in bindingExpr

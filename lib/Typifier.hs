@@ -15,7 +15,7 @@ import Control.Monad (replicateM, when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
 import Data.List (delete, nub, uncons)
-import GeneralLib (PrettyPrintable (prettyPrint), topologicallySortedPartitioning)
+import GeneralLib (PrettyPrintable (prettyPrint), topologicallySort, topologicallySortedPartitioning)
 import SyntaxTree
   ( Definition (Definition),
     Expression
@@ -42,7 +42,7 @@ import SyntaxTree
     VariableName,
     freeVariablesInDef,
     hasConflictingLetBindings,
-    topologicallySort,
+    isDependentOn,
   )
 
 data TypifierState = TypifierState TypeAssumptions VariableStream
@@ -220,10 +220,10 @@ instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
     -- if there are conflicting definitions, throw error
     when (hasConflictingLetBindings defs) $ throwError $ "conflicting bindings detected in " ++ prettyPrint defs ++ "!"
     -- topologically sort definitions and sort them in order
-    case topologicallySort defs of
-      Left s -> throwError s
-      Right [] -> typifier e
-      Right sortedDefs -> do
+    case topologicallySort defs isDependentOn of
+      Nothing -> throwError $ "unsupported: local definitions '" ++ prettyPrint defs ++ "' are recursive!"
+      Just [] -> typifier e
+      Just sortedDefs -> do
         let localDefTypifier (LocalDefinition v expr) =
               ( do
                   (localDefType, eqs) <- typifier expr
