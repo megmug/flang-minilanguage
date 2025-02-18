@@ -12,7 +12,7 @@ import Control.Lens (use, (%=))
 import Control.Monad (when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
-import Data.List (intersect, (\\))
+import Data.List ((\\))
 import SyntaxTree
   ( Definition (Definition),
     Expression (..),
@@ -84,19 +84,27 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
       Right (def@(LocalDefinition v bindingExpr) : sortedDefs) -> do
         (bindingExpr', bindingDefs) <- rewriter bindingExpr
         gFuncNames <- use globalFuncs
-        let freeVarsInDef = freeVariables e' \\ boundByTopLevelVars (def : sortedDefs)
-        let paramsInNewFuncDef = freeVarsInDef `intersect` freeVariables bindingExpr'
+        -- candidates for the parameters that should appear in the new function definition are any variables that are free in bindingExpr
+        let paramCandidates = freeVariables bindingExpr
+        -- we take away from that any variables that are either bound by one of the other definitions in the let, or are already known global function definitions
+        let leftoverParamCandidates = paramCandidates \\ (boundByTopLevelVars (def : sortedDefs) ++ gFuncNames)
+        -- now we create the application that will replace any reference to v in the other definitions, and the inner expression e'
         let calculateNewGlobalFuncName x = if x `elem` (gFuncNames ++ boundVariables e' ++ freeVariables e') then calculateNewGlobalFuncName $ x ++ "'" else x
         let v' = calculateNewGlobalFuncName v
         let calculateReplacingApp [] = Variable v'; calculateReplacingApp (x : xs) = Application (calculateReplacingApp xs) (Variable x)
-        let replacingApp = calculateReplacingApp (reverse paramsInNewFuncDef) :: Expression Core
-        let newFuncDef = Definition v' paramsInNewFuncDef (substitute v replacingApp bindingExpr')
+        let replacingApp = calculateReplacingApp (reverse leftoverParamCandidates) :: Expression Core
+        -- and here we create the new global definition replacing the let v = bindingExpr, as well as add that definition to the global function list
+        let newFuncDef = Definition v' leftoverParamCandidates (substitute v replacingApp bindingExpr')
         globalFuncs %= (++ [v'])
+        -- and here we actually substitute v by the new replacingApp in all other Defs and the inner expression e'
         let substitutedDefs = substituteDefs sortedDefs v (coreToRaw replacingApp)
         let substitutedInnerExpr = substitute v replacingApp e'
+        -- here we assemble a new let expression with the one definition eliminated, and rewrite that one too, to eliminate all other definitions
         let newLetExpression = Let substitutedDefs (coreToRaw substitutedInnerExpr)
         (newE, newDefs) <- rewriter newLetExpression
-        return (newE, newDefs ++ bindingDefs ++ [newFuncDef] ++ eDefs)
+        -- finally we return our new rewritten expression together with the resulting global definitions
+        let resultingDefs = newDefs ++ bindingDefs ++ [newFuncDef] ++ eDefs
+        return (newE, resultingDefs)
   rewriter (IfThenElse cond e1 e2) = do
     (cond', defsCond) <- rewriter cond
     (e1', defs1) <- rewriter e1
