@@ -1,5 +1,4 @@
 TODO before presentation (1.2.0.0):
-- nicer outputs, more pretty printing, especially typifier
 - make addition of inbuilt functions dependent on presence of these operators in the program
 - create generalLib for general definitions like prettyPrint class
 - refactor topological sorting for let definitions
