@@ -1,10 +1,11 @@
 TODO before presentation:
+- implement div reduction
 - nicer outputs, more pretty printing, especially typifier
 - provide simple README
 - more tests for typifier specifically
-- make typifier check for arrow-type-return-value in function (which machine doesn't support)
 stretch goal:
 for 1.1.0.0:
+- make typifier check for arrow-type-return-value in function (which machine doesn't support) - may be diffucult to implement, may be more simple to implement more powerful machine that supports whnf return arguments
 - investigate feasibility of eliminating precompiled heap from the code generator using AddDef command
 - investigate feasibility of eliminating hardcoded operator-code from code generator
 - investigate feasibility of rewriting again after typification to reduce instruction set even more
