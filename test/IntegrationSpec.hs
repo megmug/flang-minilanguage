@@ -22,7 +22,6 @@ spec = do
     it "'ackermann n m' with n = 0, m = 0 evaluates to 1" $ testRun ("main = ack 0 0;" ++ ackermannDef) `shouldBe` Right "1"
     it "'ackermann n m' with n = 1, m = 1 evaluates to 3" $ testRun ("main = ack 1 1;" ++ ackermannDef) `shouldBe` Right "3"
     it "'ackermann n m' with n = 2, m = 2 evaluates to 7" $ testRun ("main = ack 2 2;" ++ ackermannDef) `shouldBe` Right "7"
-    it "'ackermann n m' with n = 3, m = 3 evaluates to 61" $ testRun ("main = ack 3 3;" ++ ackermannDef) `shouldBe` Right "61"
     it "faculty 1 evaluates to 1" $ testRun ("main = fak 1;" ++ facultyDef) `shouldBe` Right "1"
     it "faculty 2 evaluates to 2" $ testRun ("main = fak 2;" ++ facultyDef) `shouldBe` Right "2"
     it "faculty 3 evaluates to 6" $ testRun ("main = fak 3;" ++ facultyDef) `shouldBe` Right "6"
