@@ -9,7 +9,8 @@ This can be accomplished by installing manually or by using Nix to derive a comp
 For this, Nix must be installed and can then be used to instantiate a dev-environment with 'nix-shell' (when called in the project root).
 If direnv is also installed and configured, it can do this automatically once 'direnv allow' was issued once in the project root.
 
-When the preparations are done, one can use 'stack run <executable>' <filepath> to run the executable <filepath> with file <filepath>.
+When the preparations are done, one can use 'stack run <executable> <filepath>' to run the executable <filepath> with file <filepath>.
+When running directly inside a nix-shell, 'stack run' can actually be omitted since bash aliases are defined for all executables.
 The project defines the following executables:
 
 | Executable             | Function                                                                                                                                          |
@@ -22,8 +23,8 @@ The project defines the following executables:
 | flang-typify-debug     | Typify the input program and output the result along with extensive debugging information (that may be very difficult to read)                    |
 | flang-rewrite          | Rewrite the input program and output the result                                                                                                   |
 | flang-rewrite-debug    | Rewrite the input program and output the result along with extensive debugging information (that may be very difficult to read)                   |
-| flang-generate         | Compile the input program and output the result                                                                                                   |
-| flang-generate-debug   | Compile the input program and output the result along with extensive debugging information (that may be very difficult to read)                   |
+| flang-compile          | Compile the input program and output the result                                                                                                   |
+| flang-compile-debug    | Compile the input program and output the result along with extensive debugging information (that may be very difficult to read)                   |
 | flang-run              | Run the input program and output the result                                                                                                       |
 | flang-run-debug        | Run the input program and output the result along with extensive debugging information (that may be very difficult to read)                       |
 | flang-run-vmcode       | Run the input program given as machine code and output the result                                                                                 |
