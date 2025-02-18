@@ -1,5 +1,8 @@
 TODO before presentation (1.2.0.0):
 - nicer outputs, more pretty printing, especially typifier
+- make addition of inbuilt functions dependent on presence of these operators in the program
+- create generalLib for general definitions like prettyPrint class
+- refactor topological sorting for let definitions
 stretch goal:
 for 1.2.0.0:
 - make typifier check for arrow-type-return-value in function (which machine doesn't support) - may be diffucult to implement, may be more simple to implement more powerful machine that supports whnf return arguments
