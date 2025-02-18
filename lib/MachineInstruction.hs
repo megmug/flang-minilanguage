@@ -17,8 +17,6 @@ data OperatorArg = Two | OpIf deriving (Eq, Show, Read)
 data FOperator
   = Smaller
   | Minus
-  | Times
-  | Divide
   | FIf
   deriving (Eq, Show, Read)
 

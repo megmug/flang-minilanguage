@@ -19,11 +19,9 @@ import Machine (Object (DEF))
 import MachineInstruction
   ( Arity,
     FOperator
-      ( Divide,
-        FIf,
+      ( FIf,
         Minus,
-        Smaller,
-        Times
+        Smaller
       ),
     Instruction
       ( Call,
@@ -185,20 +183,6 @@ instance Generatable (Expression Core) where
     posList %= posPlus 1
     generator e1
     code %= (++ [Pushpre MachineInstruction.Minus, Makeapp, Makeapp])
-    -- cleanup - see Application rule
-    posList %= posPlus (-1)
-  generator (Quotient e1 e2) = do
-    generator e2
-    posList %= posPlus 1
-    generator e1
-    code %= (++ [Pushpre Divide, Makeapp, Makeapp])
-    -- cleanup - see Application rule
-    posList %= posPlus (-1)
-  generator (Product e1 e2) = do
-    generator e2
-    posList %= posPlus 1
-    generator e1
-    code %= (++ [Pushpre Times, Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-1)
   generator (Application e1 e2) = do

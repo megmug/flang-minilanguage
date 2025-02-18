@@ -23,8 +23,6 @@ data Expression (s :: Stage) where
   IfThenElse :: Expression s -> Expression s -> Expression s -> Expression s
   Smaller :: Expression s -> Expression s -> Expression s
   Difference :: Expression s -> Expression s -> Expression s
-  Quotient :: Expression s -> Expression s -> Expression s
-  Product :: Expression s -> Expression s -> Expression s
   Application :: Expression s -> Expression s -> Expression s
   Variable :: VariableName -> Expression s
   Number :: Integer -> Expression s
@@ -35,6 +33,8 @@ data Expression (s :: Stage) where
   Equality :: Expression Raw -> Expression Raw -> Expression Raw
   Sum :: Expression Raw -> Expression Raw -> Expression Raw
   Minus :: Expression Raw -> Expression Raw
+  Quotient :: Expression Raw -> Expression Raw -> Expression Raw
+  Product :: Expression Raw -> Expression Raw -> Expression Raw
   Let :: [LocalDefinition] -> Expression Raw -> Expression Raw
   Boolean :: Bool -> Expression Raw
 
@@ -49,8 +49,6 @@ coreToRaw :: Expression Core -> Expression Raw
 coreToRaw (IfThenElse cond e1 e2) = IfThenElse (coreToRaw cond) (coreToRaw e1) (coreToRaw e2)
 coreToRaw (Smaller a b) = Smaller (coreToRaw a) (coreToRaw b)
 coreToRaw (Difference a b) = Difference (coreToRaw a) (coreToRaw b)
-coreToRaw (Quotient a b) = Quotient (coreToRaw a) (coreToRaw b)
-coreToRaw (Product a b) = Product (coreToRaw a) (coreToRaw b)
 coreToRaw (Application a b) = Application (coreToRaw a) (coreToRaw b)
 coreToRaw (Variable name) = Variable name
 coreToRaw (Number n) = Number n

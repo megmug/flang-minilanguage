@@ -259,7 +259,7 @@ step = do
           jumpTo a
         {- binary operator-}
         (PRE op)
-          | op `elem` [Smaller, Minus, Times, Divide] -> do
+          | op `elem` [Smaller, Minus] -> do
               pc <- use pcounter
               push pc
               {- push representation of operator onto stack -}
@@ -343,8 +343,6 @@ step = do
         resObj <- case (operand1Obj, operand2Obj, opObj) of
           (VAL op1, VAL op2, PRE Smaller) -> return $ VAL $ boolToInteger $ op1 < op2
           (VAL op1, VAL op2, PRE Minus) -> return $ VAL $ op1 - op2
-          (VAL op1, VAL op2, PRE Times) -> return $ VAL $ op1 * op2
-          (VAL op1, VAL op2, PRE Divide) -> return $ VAL $ op1 `div` op2
           _ -> throwError "Operator: Type error!"
 
         push returnAddr

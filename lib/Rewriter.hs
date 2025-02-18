@@ -53,14 +53,11 @@ class Rewritable a b where
   rewrite :: a -> Either String b
   rewrite e = customRewrite e (RewriterState [])
 
--- Constant to define if multiplication should be replaced by recursive definition
-replaceMult :: Bool
-replaceMult = False
-
 instance Rewritable (Program Raw) (Program Core) where
   rewriter (Program programDefs) = do
     let predefinedMultOperation = [Definition "#m" ["a", "b"] (IfThenElse (Smaller (Variable "b") (Number 0)) (Minus (Application (Application (Variable "#m") (Variable "a")) (Minus (Variable "b")))) (IfThenElse (Smaller (Number 0) (Variable "b")) (Sum (Variable "a") (Application (Application (Variable "#m") (Variable "a")) (Difference (Variable "b") (Number 1)))) (Number 0)))]
-    let allDefs = predefinedMultOperation ++ programDefs
+    let predefinedDivOperation = [Definition "#d" ["a", "b"] (Product (IfThenElse (LogicalNegation (Equality (Smaller (Variable "a") (Number 0)) (Smaller (Variable "b") (Number 0)))) (Minus (Number 1)) (Number 1)) (Application (Application (Variable "#dh") (IfThenElse (Smaller (Variable "a") (Number 0)) (Minus (Variable "a")) (Variable "a"))) (IfThenElse (Smaller (Variable "b") (Number 0)) (Minus (Variable "b")) (Variable "b")))), Definition "#dh" ["a", "b"] (IfThenElse (Smaller (Variable "a") (Variable "b")) (Number 0) (Sum (Application (Application (Variable "#e") (Number 2)) (Application (Application (Application (Variable "#f") (Variable "a")) (Variable "b")) (Number 0))) (Application (Application (Variable "#dh") (Difference (Variable "a") (Product (Variable "b") (Application (Application (Variable "#e") (Number 2)) (Application (Application (Application (Variable "#f") (Variable "a")) (Variable "b")) (Number 0)))))) (Variable "b")))), Definition "#f" ["a", "b", "s"] (IfThenElse (Smaller (Variable "a") (Product (Variable "b") (Application (Application (Variable "#e") (Number 2)) (Sum (Variable "s") (Number 1))))) (Variable "s") (Application (Application (Application (Variable "#f") (Variable "a")) (Variable "b")) (Sum (Variable "s") (Number 1)))), Definition "#e" ["x", "y"] (IfThenElse (Equality (Variable "y") (Number 0)) (Number 1) (Product (Variable "x") (Application (Application (Variable "#e") (Variable "x")) (Difference (Variable "y") (Number 1)))))]
+    let allDefs = programDefs ++ predefinedMultOperation ++ predefinedDivOperation
     rewrittenDefs <- traverse rewriter allDefs
     return $ Program $ concat rewrittenDefs
 
@@ -112,8 +109,8 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     return (IfThenElse cond' e1' e2', defsCond ++ defs1 ++ defs2)
   -- eliminate disjunctions by leveraging de-morgan-rule
   rewriter (Disjunction e1 e2) = rewriter (LogicalNegation $ Conjunction (LogicalNegation e1) (LogicalNegation e2))
-  -- replace "&" by "*"
-  rewriter (Conjunction e1 e2) = rewriter (Product e1 e2)
+  -- replace "a & b" by "if a < 1 then 0 else if b < 1 then 0 else 1"
+  rewriter (Conjunction e1 e2) = rewriter (IfThenElse (Smaller e1 (Number 1)) (Number 0) (IfThenElse (Smaller e2 (Number 1)) (Number 0) (Number 1)))
   -- replace logical negation by "< 1"
   rewriter (LogicalNegation e) = rewriter (Smaller e (Number 1))
   rewriter (Smaller e1 e2) = do
@@ -130,20 +127,28 @@ instance Rewritable (Expression Raw) (Expression Core, [Definition Core]) where
     return (Difference e1' e2', defs1 ++ defs2)
   -- a + b == a - (- b)
   rewriter (Sum e1 e2) = rewriter (Difference e1 (Minus e2))
-  rewriter (Quotient e1 e2) = do
-    (e1', defs1) <- rewriter e1
-    (e2', defs2) <- rewriter e2
-    return (Quotient e1' e2', defs1 ++ defs2)
+  {- replace quotients by the program
+   -     #d a b = (if not ((a < 0) == (b < 0)) then -1 else 1) * #dh (if a < 0 then -a else a) (if b < 0 then -b else b);
+   -
+   -     #dh a b =
+   -         if a < b
+   -         then 0
+   -         else e 2 (f a b 0) + #dh
+   -     (a - (b * (#e 2 (#f a b 0)))) b;
+   -
+   -     #f a b s =
+   -         if a < b * (#e 2 (s + 1))
+   -         then s
+   -         else #f a b (s + 1);
+   -
+   -     #e x y = if y == 0 then 1 else x * #e x (y - 1);
+   - that recursively calculates the integer division
+   -}
+  rewriter (Quotient e1 e2) = rewriter (Application (Application (Variable "#d") e1) e2)
   {- if replaceMult is True, then it is implemented as the following combinator:
    - #m a b = if b < 0 then - (#m a (-b)) else if 0 < b then a + #m a (b - 1) else 0;
    -}
-  rewriter (Product e1 e2) =
-    if replaceMult
-      then rewriter (Application (Application (Variable "#m") e1) e2)
-      else do
-        (e1', defs1) <- rewriter e1
-        (e2', defs2) <- rewriter e2
-        return (Product e1' e2', defs1 ++ defs2)
+  rewriter (Product e1 e2) = rewriter (Application (Application (Variable "#m") e1) e2)
   rewriter (Application e1 e2) = do
     (e1', defs1) <- rewriter e1
     (e2', defs2) <- rewriter e2
