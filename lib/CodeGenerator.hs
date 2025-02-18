@@ -13,7 +13,6 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
 import Data.Foldable (traverse_)
-import Data.List (nub)
 import Data.List.Index (indexed)
 import Machine (Object (DEF))
 import MachineInstruction
@@ -138,15 +137,11 @@ instance Generatable (Program Core) where
          ]
     -- to understand why we need to generate function defs iteratively, see generateDefs
     traverse_ addToGlobalFuncs defs
-    -- check if main definition is missing - if so, abort
-    funs <- use globalFuncs
-    unless ("main" `elem` map fst funs) $ throwError "no main definition!"
     -- generate all definitions
     traverse_ generator defs
 
 instance Generatable (Definition Core) where
-  generator def@(Definition f params e) = do
-    when (params /= nub params) $ throwError $ "function definition " ++ prettyPrint def ++ " has conflicting parameter bindings!"
+  generator (Definition f params e) = do
     c <- use code
     let addr = length c
     let n = length params

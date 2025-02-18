@@ -1,5 +1,4 @@
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TupleSections #-}
 
 module MainLib where
 
@@ -29,6 +28,7 @@ import Parser (parse)
 import Rewriter (Rewritable (rewrite))
 import SyntaxTree (Program, Stage (..), prettyPrint)
 import System.Environment (getArgs)
+import System.Exit (exitFailure)
 import System.IO (BufferMode (NoBuffering), hSetBuffering, stdout)
 import Token (TokenPos)
 import Tokenizer (tokenize)
@@ -46,7 +46,8 @@ tokenizeFile isDebugMode path = do
   input <- readFile path
   case tokenize input of
     Left e -> do
-      fail $ "Lexical error: " ++ show e
+      putStrLn $ "Lexical error: " ++ show e
+      exitFailure
     Right ts -> do
       when isDebugMode $ do
         putStrLn "Successfully tokenized program:"
@@ -58,7 +59,9 @@ tokenizeFile isDebugMode path = do
 parseTokens :: Bool -> [TokenPos] -> IO (Program Raw)
 parseTokens isDebugMode ts = do
   case Parser.parse ts of
-    Left e -> fail $ "Parse error: " ++ show e
+    Left e -> do
+      putStr $ "Parse error: " ++ show e
+      exitFailure
     Right ast -> do
       when isDebugMode $ do
         putStrLn ""
@@ -67,9 +70,11 @@ parseTokens isDebugMode ts = do
       return ast
 
 typifyProgram :: Bool -> Program Raw -> IO (Program Raw, MonoType)
-typifyProgram isDebugMode prog = do
+typifyProgram isDebugMode prog =
   case typify prog of
-    Left err -> fail err
+    Left err -> do
+      putStr err
+      exitFailure
     Right t -> do
       when isDebugMode $ do
         putStrLn ""
@@ -80,7 +85,9 @@ typifyProgram isDebugMode prog = do
 rewriteProgram :: Bool -> Program Raw -> MonoType -> IO (Program Core, MonoType)
 rewriteProgram isDebugMode prog t = do
   case rewrite prog of
-    Left err -> fail err
+    Left err -> do
+      putStr err
+      exitFailure
     Right prog' -> do
       when isDebugMode $ do
         putStrLn ""
@@ -93,7 +100,9 @@ rewriteProgram isDebugMode prog t = do
 generateProgram :: Bool -> Program Core -> MonoType -> IO (HeapEnvironment, Code, MonoType)
 generateProgram isDebugMode ast t = do
   case generate ast of
-    Left err -> fail err
+    Left err -> do
+      putStr err
+      exitFailure
     Right (heap, prog) -> do
       when isDebugMode $ do
         putStrLn ""
@@ -111,23 +120,36 @@ runIO isDebugMode = do
     when isDebugMode $ do
       m <- lift get
       liftIO $ putStrLn ""
-      liftIO $ putStrLn $ "Machine state:\n" ++ prettyPrintMachineState m ++ "\n"
+      liftIO $ putStrLn "Machine state:"
+      liftIO $ putStrLn (prettyPrintMachineState m)
     isNotHalted
   a <- pop
   getObject a
 
 runProgramIO :: Bool -> [Object] -> [Instruction] -> MonoType -> IO ()
 runProgramIO isDebugMode h prog t = case createMachineWithHeap h prog of
-  Nothing -> putStrLn "Error running program: Invalid machine code!"
+  Nothing -> do
+    putStrLn "Error running program: Invalid machine code!"
+    exitFailure
   Just m -> do
     res <- runStateT (runExceptT (runIO isDebugMode)) m
     case res of
-      (Left s, _) -> putStr $ "Error running program: " ++ s
+      (Left s, m') -> do
+        when isDebugMode $ putStrLn ""
+        putStrLn $ "Error running program: " ++ s
+        when isDebugMode $ do
+          putStrLn "Machine state:"
+          putStr $ prettyPrintMachineState m'
+        exitFailure
       (Right (VAL v), _) -> case t of
         FInteger -> print v
         FBool -> putStr $ if v == 0 then "false" else "true"
-        _ -> putStr "expected return type is invalid"
-      (Right o, _) -> putStr $ "Return value is malformed (" ++ show o ++ ")"
+        _ -> do
+          putStr "expected return type is invalid"
+          exitFailure
+      (Right o, _) -> do
+        putStr $ "Return value is malformed (" ++ show o ++ ")"
+        exitFailure
 
 getArgsSetBuffering :: IO [String]
 getArgsSetBuffering = do
@@ -152,7 +174,7 @@ flangParse isDebugMode = do
 flangParseAndPrint :: Bool -> IO ()
 flangParseAndPrint isDebugMode = do
   ast <- flangParse isDebugMode
-  if isDebugMode then return () else putStrLn $ prettyPrint ast
+  if isDebugMode then return () else putStrLn $ "pretty-printed program\n" ++ prettyPrint ast ++ "\nraw haskell-parseable syntax tree:\n" ++ show ast
 
 flangTypify :: Bool -> IO (Program Raw, MonoType)
 flangTypify isDebugMode = do
@@ -162,7 +184,7 @@ flangTypify isDebugMode = do
 flangTypifyAndPrint :: Bool -> IO ()
 flangTypifyAndPrint isDebugMode = do
   (_, t) <- flangTypify isDebugMode
-  if isDebugMode then return () else print t
+  if isDebugMode then return () else putStrLn $ prettyPrint t
 
 flangRewrite :: Bool -> IO (Program Core, MonoType)
 flangRewrite isDebugMode = do

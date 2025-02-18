@@ -7,9 +7,8 @@ module Machine where
 import Control.Lens (use, (.=))
 import Control.Lens.Operators ((+=))
 import Control.Monad.Extra (whileM)
-import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, throwE)
-import Control.Monad.Trans.State (StateT, get)
+import Control.Monad.Trans.State (StateT)
 import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, lookupMin)
 import Data.List.Index as I (indexed)
 import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
@@ -120,9 +119,7 @@ loadNextInstruction = do
   jumpTo pc
 
 throwError :: (Monad m) => String -> Computation m a
-throwError e = do
-  m <- lift get
-  throwE $ e ++ "\n" ++ prettyPrintMachineState m
+throwError = throwE
 
 createMachine :: [Instruction] -> Maybe Machine
 createMachine = createMachineWithHeap []

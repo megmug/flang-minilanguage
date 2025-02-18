@@ -122,7 +122,7 @@ instance Typifiable (Program Raw) MonoType where
       Just t
         | areEquivalentAssumptions t (Assumption "main" $ MonoType FInteger) -> return FInteger
         | areEquivalentAssumptions t (Assumption "main" $ MonoType FBool) -> return FBool
-        | otherwise -> throwError $ "main definition is of too general hence invalid type: " ++ show t
+        | otherwise -> throwError $ "main definition is of too general hence invalid type: " ++ prettyPrint t ++ " - must be " ++ prettyPrint FInteger ++ " or " ++ prettyPrint FBool
 
 {- This assumes that defs are a mutually recursive set of function definitions
  - it also assumes that any type assumptions from externally dependended upon functions (besides the ones in the mutually recursive set defs) are already established
@@ -155,7 +155,8 @@ instance Typifiable [Definition Raw] TypeAssumptions where
  - also in the case of a recursive function, the resulting type may not be the final type, iteration may be needed (see program typifier)
  -}
 instance Typifiable (Definition Raw) PolyType where
-  typifier (Definition _ params e) = do
+  typifier def@(Definition _ params e) = do
+    when (params /= nub params) $ throwError $ "function definition " ++ prettyPrint def ++ " has conflicting parameter bindings!"
     -- calculate new type variables for use in the params' type assumptions
     vars <- replicateM (length params) getNewTypeVar
     let newAssumptions = zipWith (\v a -> Assumption v (MonoType $ TypeVariable a)) params vars
@@ -178,7 +179,7 @@ instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
     let alpha = TypeVariable v
     let newEqs = nub $ eqsCond ++ eqs1 ++ eqs2 ++ [alpha :=: tau1, alpha :=: tau2, tauCond :=: FBool]
     case unify newEqs of
-      Nothing -> throwError $ "error unifying type equations " ++ show newEqs ++ " for expression " ++ prettyPrint e
+      Nothing -> throwError $ "unifying type equations failed for expression:\n" ++ prettyPrint e ++ "\ntype equations:\n" ++ prettyPrint newEqs
       Just newUnifiedEqs -> return (alpha, newUnifiedEqs)
   typifier (Conjunction e1 e2) = typifier (Application (Application (Variable "&") e1) e2)
   typifier (LogicalNegation e) = typifier (Application (Variable "¬") e)
@@ -195,7 +196,7 @@ instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
     let newTypeEq = tau1 :=: (tau2 :->: TypeVariable alpha)
     let newEqs = nub $ eqs1 ++ eqs2 ++ [newTypeEq]
     case unify newEqs of
-      Nothing -> throwError $ "error unifying type equations " ++ show newEqs ++ " for expression " ++ prettyPrint e
+      Nothing -> throwError $ "unifying type equations failed for expression:\n" ++ prettyPrint e ++ "\ntype equations:\n" ++ prettyPrint newEqs
       Just newUnifiedEqs -> return (TypeVariable alpha, newUnifiedEqs)
   typifier (Variable v) = do
     ass <- use assumptions
@@ -238,7 +239,7 @@ instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
         -- the resulting equations are all equations for the inner bindings + the equations for the expression itself
         let newEqs = concat innerEqs ++ eEqs
         case unify newEqs of
-          Nothing -> throwError $ "error unifying type equations " ++ show newEqs ++ " for expression " ++ prettyPrint e
+          Nothing -> throwError $ "unifying type equations failed for expression:\n" ++ prettyPrint e ++ "\ntype equations:\n" ++ prettyPrint newEqs
           Just newUnifiedEqs -> return (eType, newUnifiedEqs)
   typifier (Disjunction e1 e2) = typifier (Application (Application (Variable "|") e1) e2)
   typifier (Minus e) = typifier (Application (Variable "u-") e)
@@ -430,6 +431,30 @@ substituteFromEqs = foldr substituteFromEq
   where
     substituteFromEq (TypeVariable x :=: tau') tau = substitute (TypeVariable x) tau' tau
     substituteFromEq _ tau = tau
+
+instance PrettyPrintable MonoType where
+  prettyPrint FInteger = "Integer"
+  prettyPrint FBool = "Bool"
+  prettyPrint (a :->: b) = prettyPrint a ++ " -> " ++ prettyPrint b
+  prettyPrint (TypeVariable a) = a
+
+instance PrettyPrintable PolyType where
+  prettyPrint (MonoType t) = prettyPrint t
+  prettyPrint (PolyType [] t) = prettyPrint t
+  prettyPrint (PolyType vs t) = "∀" ++ toStr vs ++ "." ++ prettyPrint t
+    where
+      toStr [] = ""
+      toStr [x] = x
+      toStr (x : xs) = x ++ ", " ++ toStr xs
+
+instance PrettyPrintable TypeAssumption where
+  prettyPrint (Assumption v t) = v ++ " :: " ++ prettyPrint t
+
+instance PrettyPrintable TypeEquation where
+  prettyPrint (a :=: b) = prettyPrint a ++ " = " ++ prettyPrint b
+
+instance PrettyPrintable [TypeEquation] where
+  prettyPrint xs = show $ map prettyPrint xs
 
 throwError :: String -> Typifier a
 throwError s = throwE $ "Error during typification: " ++ s

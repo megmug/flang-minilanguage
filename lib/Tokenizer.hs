@@ -90,4 +90,4 @@ tokenizer = do
   return ts
 
 tokenize :: String -> Either ParseError [TokenPos]
-tokenize = Text.Parsec.parse tokenizer "input"
+tokenize = Text.Parsec.parse tokenizer ""
