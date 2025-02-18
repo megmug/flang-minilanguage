@@ -1,5 +1,4 @@
 TODO before presentation (1.2.0.0):
-- make addition of inbuilt functions dependent on presence of these operators in the program
 - refactor topological sorting for let definitions
 stretch goal:
 for 1.2.0.0:
