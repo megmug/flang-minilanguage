@@ -12,6 +12,7 @@ import Control.Monad.Trans.State (StateT)
 import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, lookupMin)
 import Data.List.Index as I (indexed)
 import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
+import GeneralLib (PrettyPrintable (prettyPrint))
 import MachineInstruction
   ( Arity,
     CodeAddress,
@@ -86,8 +87,8 @@ heap f (Machine c s i pc o h) = (\h' -> Machine c s i pc o h') <$> f h
 {--}
 
 {- Utility functions and computations -}
-prettyPrintMachineState :: Machine -> String
-prettyPrintMachineState (Machine _ s ir pc oc h) = "Stack: " ++ show s ++ "\nInstruction register: " ++ show ir ++ "\nProgram counter: " ++ show pc ++ "\nObject counter: " ++ show oc ++ "\nHeap: " ++ show h
+instance PrettyPrintable Machine where
+  prettyPrint (Machine _ s ir pc oc h) = "Stack: " ++ show s ++ "\nInstruction register: " ++ show ir ++ "\nProgram counter: " ++ show pc ++ "\nObject counter: " ++ show oc ++ "\nHeap: " ++ show h
 
 getObject :: (Monad m) => HeapAddress -> Computation m Object
 getObject a = do

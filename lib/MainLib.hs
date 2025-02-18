@@ -21,7 +21,6 @@ import Machine
     getObject,
     isNotHalted,
     pop,
-    prettyPrintMachineState,
     step,
   )
 import MachineInstruction (Instruction)
@@ -122,7 +121,7 @@ runIO isDebugMode = do
       m <- lift get
       liftIO $ putStrLn ""
       liftIO $ putStrLn "Machine state:"
-      liftIO $ putStrLn (prettyPrintMachineState m)
+      liftIO $ putStrLn (prettyPrint m)
     isNotHalted
   a <- pop
   getObject a
@@ -140,7 +139,7 @@ runProgramIO isDebugMode h prog t = case createMachineWithHeap h prog of
         putStrLn $ "Error running program: " ++ s
         when isDebugMode $ do
           putStrLn "Machine state:"
-          putStr $ prettyPrintMachineState m'
+          putStr $ prettyPrint m'
         exitFailure
       (Right (VAL v), _) -> case t of
         FInteger -> print v
