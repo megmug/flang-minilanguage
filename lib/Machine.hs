@@ -241,7 +241,7 @@ step = do
       overrideObject ha (IND top)
 
       sndtop <- pop
-      
+
       {- remove from the stack arity + 1 elements below the topmost two to clear away the unneeded heap addresses from the old expression tree (Update is run after new expression is constructed)  -}
       replicateM_ (arity + 1) pop
 
@@ -272,92 +272,63 @@ step = do
       returnAddr <- pop
       push res
       jumpTo returnAddr
-    Operator op -> case op of
-      Smaller -> do
-        -- The order of the operands on the stack for e1 - e2 is [addr(e2), addr(e1), return addr, addr(value(e1)), addr(value(e2))] <- TOP' (structure established by the subroutine for binary operators)
-        e2ValAddr <- pop
-        e1ValAddr <- pop
+    Operator FIf -> do
+      -- stack layout on call for if cond then e1 else e2: [e2 (and addr of the if-then-else-application), e1, cond, DEF "if", return addr, cond <- TOP]
+      condAddr <- pop
+      returnAddr <- pop
+      _ <- pop
+      _ <- pop
+      trueBranchAddr <- pop
+      falseBranchAddr <- pop
+      -- here we assume that the condObj is already evaluated, since it Operator OpIf is preceded by "Unwind, Call"
+      condObj <- getObject condAddr
+      resAppAddr <- case condObj of
+        (VAL b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
+        otherObj -> throwError $ "Operator: non-boolean value in if-condition: " ++ show otherObj
+      resAddr <- add2arg resAppAddr
 
-        returnAddr <- pop
-        _ <- pop
-        _ <- pop
-
-        e1ValObj <- getObject e1ValAddr
-        e2ValObj <- getObject e2ValAddr
-        resObj <- case (e1ValObj, e2ValObj) of
-          (VAL op1, VAL op2) -> return $ VAL $ boolToInteger $ op1 < op2
-          _ -> throwError "Operator: Type error!"
-
-        {- perform cleanup:
-         - the address of e2 is simultaneously the address of the expression that is replaced by the computed result
-         - so adjust e2addr to be an indirection to the result's address
-         - then push return address and e2addr to the stack
-         -}
-        e2Addr <- pop
-        resAddr <- new resObj
-        overrideObject e2Addr (IND resAddr)
-
-        push returnAddr
-        push e2Addr
-
-        loadNextInstruction
-      Minus -> do
-        -- The order of the operands on the stack for e1 - e2 is [addr(e2), addr(e1), fun "-", return addr, addr(value(e1)), addr(value(e2))] <- TOP' (structure established by the subroutine for binary operators)
-        e2ValAddr <- pop
-        e1ValAddr <- pop
-
-        returnAddr <- pop
-        _ <- pop
-        _ <- pop
-
-        e1ValObj <- getObject e1ValAddr
-        e2ValObj <- getObject e2ValAddr
-        resObj <- case (e1ValObj, e2ValObj) of
-          (VAL op1, VAL op2) -> return $ VAL $ op1 - op2
-          _ -> throwError "Operator: Type error!"
-
-        {- perform cleanup:
-         - the address of e2 is simultaneously the address of the expression that is replaced by the computed result
-         - so adjust e2addr to be an indirection to the result's address
-         - then push return address and e2addr to the stack
-         -}
-        e2Addr <- pop
-        resAddr <- new resObj
-        overrideObject e2Addr (IND resAddr)
-
-        push returnAddr
-        push e2Addr
-
-        loadNextInstruction
-      {- stack layout on call for if cond then e1 else e2: [e2 (and addr of the if-then-else-application), e1, cond, DEF "if", return addr, cond <- TOP]
+      {- Perform indirection and push elements to stack:
+       - first, override the object at falseBranchAddr (the old-if-then-else-expression) by an indirection to the object of the result (at resAddr)
+       - then, push the return address followed by the overridden address which now points to the result
+       - stack layout after call: [return addr, result <- TOP]
        -}
-      FIf -> do
-        condAddr <- pop
-        returnAddr <- pop
-        _ <- pop
-        _ <- pop
-        trueBranchAddr <- pop
-        falseBranchAddr <- pop
-        -- here we assume that the condObj is already evaluated, since it Operator OpIf is preceded by "Unwind, Call"
-        condObj <- getObject condAddr
-        resAppAddr <- case condObj of
-          (VAL b) -> return (if integerToBool b then trueBranchAddr else falseBranchAddr)
-          otherObj -> throwError $ "Operator: non-boolean value in if-condition: " ++ show otherObj
-        resAddr <- add2arg resAppAddr
 
-        {- Perform indirection and push elements to stack:
-         - first, override the object at falseBranchAddr (the old-if-then-else-expression) by an indirection to the object of the result (at resAddr)
-         - then, push the return address followed by the overridden address which now points to the result
-         - stack layout after call: [return addr, result <- TOP]
-         -}
+      overrideObject falseBranchAddr (IND resAddr)
 
-        overrideObject falseBranchAddr (IND resAddr)
+      push returnAddr
+      push resAddr
 
-        push returnAddr
-        push resAddr
+      loadNextInstruction
+    Operator op -> do
+      -- The order of the operands on the stack for e1 - e2 is [addr(e2), addr(e1), return addr, addr(value(e1)), addr(value(e2))] <- TOP' (structure established by the subroutine for binary operators)
+      e2ValAddr <- pop
+      e1ValAddr <- pop
 
-        loadNextInstruction
-    Halt -> do return ()
+      returnAddr <- pop
+      _ <- pop
+      _ <- pop
+
+      e1ValObj <- getObject e1ValAddr
+      e2ValObj <- getObject e2ValAddr
+      resObj <- case (e1ValObj, e2ValObj, op) of
+        (VAL op1, VAL op2, Smaller) -> return $ VAL $ boolToInteger $ op1 < op2
+        (VAL op1, VAL op2, Minus) -> return $ VAL $ op1 - op2
+        _ -> throwError "Operator: Type error!"
+
+      {- perform cleanup:
+       - the address of e2 is simultaneously the address of the expression that is replaced by the computed result
+       - so adjust e2addr to be an indirection to the result's address
+       - then push return address and e2addr to the stack
+       -}
+      e2Addr <- pop
+      resAddr <- new resObj
+      overrideObject e2Addr (IND resAddr)
+
+      push returnAddr
+      push e2Addr
+
+      loadNextInstruction
+    Halt -> return ()
 
 run :: (Monad m) => Computation m Object
 run = do
