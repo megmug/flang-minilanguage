@@ -255,25 +255,6 @@ step = do
           pc <- use pcounter
           push pc
           jumpTo a
-        {- binary operator-}
-        (PRE op)
-          | op `elem` [Smaller, Minus] -> do
-              pc <- use pcounter
-              push pc
-              {- push representation of operator onto stack -}
-              push top
-              {- this is nasty - but according to spec! -}
-              jumpTo 3
-          {- ternary operator: if-}
-          | op == FIf -> do
-              pc <- use pcounter
-              push pc
-              {- push representation of operator onto stack
-               - this is different in the spec, but otherwise, the generated PushParam offset is wrong, so this seems to be the intended behaviour
-               -}
-              push top
-              {- this is nasty - but according to spec! -}
-              jumpTo 12
         _ -> throwError "Call: Malformed object detected!"
     Return -> do
       res <- pop

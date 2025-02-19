@@ -114,7 +114,8 @@ instance Generatable (Program Core) where
       .= [ Pushfun "main",
            Call,
            Halt,
-           -- subroutine for binary operators (address: 3)
+           -- subroutine for smaller operator (address: 3)
+           Pushpre MachineInstruction.Smaller,
            Pushparam 2,
            Unwind,
            Call,
@@ -124,17 +125,31 @@ instance Generatable (Program Core) where
            Operator Two,
            Update PredefinedOperator,
            Return,
-           -- subroutine for if-then-else operator (address: 12)
+           -- subroutine for minus operator (address: 13)
+           Pushpre MachineInstruction.Minus,
+           Pushparam 2,
+           Unwind,
+           Call,
+           Pushparam 4,
+           Unwind,
+           Call,
+           Operator Two,
+           Update PredefinedOperator,
+           Return,
+           -- subroutine for if-then-else operator (address: 23)
+           Pushpre MachineInstruction.FIf,
            Pushparam 2,
            Unwind,
            Call,
            Operator OpIf,
            Update PredefinedOperator,
            -- These instructions are to evaluate the resulting expression as well, since this is the intended behaviour for if-then-else expressions
-           Unwind, --
+           Unwind,
            Call,
            Return
          ]
+    -- add function definitions for predefined functions
+    heapEnv .= [DEF "<" 2 3, DEF "-" 2 13, DEF "#if" 3 23]
     -- to understand why we need to generate function defs iteratively, see generateDefs
     traverse_ addToGlobalFuncs defs
     -- generate all definitions
@@ -163,21 +178,21 @@ instance Generatable (Expression Core) where
     generator e2
     posList %= posPlus 1
     generator e1
-    code %= (++ [Pushpre FIf, Makeapp, Makeapp, Makeapp])
+    code %= (++ [Pushfun "#if", Makeapp, Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-2)
   generator (SyntaxTree.Smaller e1 e2) = do
     generator e2
     posList %= posPlus 1
     generator e1
-    code %= (++ [Pushpre MachineInstruction.Smaller, Makeapp, Makeapp])
+    code %= (++ [Pushfun "<", Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-1)
   generator (Difference e1 e2) = do
     generator e2
     posList %= posPlus 1
     generator e1
-    code %= (++ [Pushpre MachineInstruction.Minus, Makeapp, Makeapp])
+    code %= (++ [Pushfun "-", Makeapp, Makeapp])
     -- cleanup - see Application rule
     posList %= posPlus (-1)
   generator (Application e1 e2) = do
