@@ -8,17 +8,14 @@ module CodeGenerator where
 
 import Control.Lens (use)
 import Control.Lens.Operators ((%=), (.=))
-import Control.Monad (unless, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState, get)
 import Data.Foldable (traverse_)
 import Data.List.Index (indexed)
-import GeneralLib (PrettyPrintable (prettyPrint))
 import Machine (Object (DEF))
 import MachineInstruction
-  ( Arity,
-    FOperator
+  ( FOperator
       ( If,
         Minus,
         Smaller
@@ -50,7 +47,7 @@ import SyntaxTree
     - the code that was already generated, maintained as a simple list
     - a heap environment that is used to store the generated DEF function definitions that the machine requires for operation
  -}
-data GenState = GenState PosList Code HeapEnvironment GlobalFunctionList
+data GenState = GenState PosList Code HeapEnvironment
 
 type PrefixLength = Int
 
@@ -60,23 +57,18 @@ type Code = [Instruction]
 
 type HeapEnvironment = [Object]
 
-type GlobalFunctionList = [(VariableName, Arity)]
-
 -- Here we define a type for monadic actions that represent the types of our code generators
 type Generator a = ExceptT String (State GenState) a
 
 {- Lens definitions for GenState -}
 posList :: (Functor f) => (PosList -> f PosList) -> GenState -> f GenState
-posList f (GenState pos c h funcs) = (\pos' -> GenState pos' c h funcs) <$> f pos
+posList f (GenState pos c h) = (\pos' -> GenState pos' c h) <$> f pos
 
 code :: (Functor f) => (Code -> f Code) -> GenState -> f GenState
-code f (GenState pos c h funcs) = (\code' -> GenState pos code' h funcs) <$> f c
+code f (GenState pos c h) = (\code' -> GenState pos code' h) <$> f c
 
 heapEnv :: (Functor f) => (HeapEnvironment -> f HeapEnvironment) -> GenState -> f GenState
-heapEnv f (GenState pos c h funcs) = (\h' -> GenState pos c h' funcs) <$> f h
-
-globalFuncs :: (Functor f) => (GlobalFunctionList -> f GlobalFunctionList) -> GenState -> f GenState
-globalFuncs f (GenState pos c h funcs) = (\funcs' -> GenState pos c h funcs') <$> f funcs
+heapEnv f (GenState pos c h) = (\h' -> GenState pos c h') <$> f h
 
 {- -}
 
@@ -92,12 +84,12 @@ class Generatable a where
     where
       generateAndReturn = do
         generator e
-        (GenState _ c h _) <- lift get
+        (GenState _ c h) <- lift get
         return (h, c)
 
   -- This runs a generator with some default empty state (mostly useful for whole programs)
   generate :: a -> Either String (HeapEnvironment, Code)
-  generate e = customGenerate e $ GenState [] [] [] []
+  generate e = customGenerate e $ GenState [] [] []
 
 {--}
 
@@ -140,8 +132,6 @@ instance Generatable (Program Core) where
          ]
     -- add function definitions for predefined functions
     heapEnv .= [DEF "<" 2 3, DEF "-" 2 11, DEF "#if" 3 19]
-    -- to understand why we need to generate function defs iteratively, see generateDefs
-    traverse_ addToGlobalFuncs defs
     -- generate all definitions
     traverse_ generator defs
 
@@ -198,11 +188,8 @@ instance Generatable (Expression Core) where
     case lookupPos v positions of
       -- if it has a position it is a parameter
       Just i -> code %= (++ [Pushparam i])
-      -- if it doesn't, we assume it is a function (of course this is unsafe, but this is better implemented as part of a proper type checker that doesn't yet exist)
-      Nothing -> do
-        funs <- use globalFuncs
-        unless (v `isDefinedIn` funs) $ throwError $ "no such function: " ++ v
-        code %= (++ [Pushfun v])
+      -- if it doesn't, we assume it is a function (this is safe since the typifier rules out the possibility of undefined functions)
+      Nothing -> code %= (++ [Pushfun v])
   generator (Number n) = do
     code %= (++ [Pushval n])
 
@@ -211,12 +198,6 @@ instance Generatable (Expression Core) where
 {- Helper functions and generators -}
 
 {- -}
-addToGlobalFuncs :: Definition Core -> Generator ()
-addToGlobalFuncs def@(Definition f params _) = do
-  -- add new function to global environment, if it is not already defined - otherwise, throw error
-  funs <- use globalFuncs
-  when (f `isDefinedIn` funs) $ throwError $ "conflicting function definition for function " ++ f ++ ": " ++ prettyPrint def
-  globalFuncs %= (++ [(f, length params)])
 
 throwError :: String -> Generator ()
 throwError s = throwE $ "Error during code generation: " ++ s
@@ -230,10 +211,5 @@ posPlus i = map (\(ind, a) -> (ind + i, a))
 lookupPos :: (Eq a) => a -> [(Int, a)] -> Maybe Int
 lookupPos _ [] = Nothing
 lookupPos y ((i, x) : xs) = if x == y then Just i else lookupPos y xs
-
-isDefinedIn :: VariableName -> GlobalFunctionList -> Bool
-isDefinedIn f fs = f `elem` funs
-  where
-    funs = map fst fs
 
 {--}

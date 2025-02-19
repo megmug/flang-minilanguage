@@ -86,6 +86,8 @@ class Typifiable a b where
 {- Typifier for programs, according to an adaptation of KFPTS iterative typification -}
 instance Typifiable (Program Raw) MonoType where
   typifier (Program defs) = do
+    -- if there are conflicting definitions, abort
+    when (hasConflictingDefinition defs) $ throwError "program has conflicting definitions!"
     -- the type assumptions include an assumption for every predefined operator - for example: '*' :: Integer -> Integer -> Integer
     let assumptionsForPredefinedFuncs =
           [ Assumption "&" $ MonoType (FBool :->: (FBool :->: FBool)),
@@ -243,6 +245,15 @@ instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
           Just newUnifiedEqs -> return (eType, newUnifiedEqs)
   typifier (Disjunction e1 e2) = typifier (Application (Application (Variable "|") e1) e2)
   typifier (Minus e) = typifier (Application (Variable "u-") e)
+
+
+{- Helper functions, typeclass instances, etc. -}
+
+hasConflictingDefinition :: [Definition s] -> Bool
+hasConflictingDefinition defs = nub (toNames defs) /= toNames defs
+  where
+    toName (Definition f _ _) = f
+    toNames = map toName
 
 -- returns true iff function definition on left side is used (referenced) by right side
 isUsedBy :: Definition Raw -> Definition Raw -> Bool
