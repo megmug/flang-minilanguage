@@ -322,9 +322,10 @@ step = do
         push resAddr
 
         loadNextInstruction
+      {- stack layout on call for if cond then e1 else e2: [e2 (and addr of the if-then-else-application), e1, cond, DEF "if", return addr, cond <- TOP]
+       -}
       OpIf -> do
         condAddr <- pop
-        _ <- pop
         returnAddr <- pop
         _ <- pop
         _ <- pop
@@ -337,13 +338,14 @@ step = do
           otherObj -> throwError $ "Operator: non-boolean value in if-condition: " ++ show otherObj
         resAddr <- add2arg resAppAddr
 
-        {- Push elements to stack - the spec is wrong, but it makes sense to do this:
-         - push the address of the false branch first - this is the address of the if expression, since it is an application of (if cond then trueBranch else) to falseBranch
-         - then push the return address
-         - then push the address of the resulting expression
-         - this must be the order since "Operator OpIf" is followed by "Update PredefinedOperator" which expects  the order "expression to indirect, return address, target of indirection <- TOP"
+        {- Perform indirection and push elements to stack:
+         - first, override the object at falseBranchAddr (the old-if-then-else-expression) by an indirection to the object of the result (at resAddr)
+         - then, push the return address followed by the overridden address which now points to the result
+         - stack layout after call: [return addr, result <- TOP]
          -}
-        push falseBranchAddr
+
+        overrideObject falseBranchAddr (IND resAddr)
+
         push returnAddr
         push resAddr
 

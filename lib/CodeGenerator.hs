@@ -19,8 +19,7 @@ import Machine (Object (DEF))
 import MachineInstruction
   ( Arity,
     FOperator
-      ( FIf,
-        Minus,
+      ( Minus,
         Smaller
       ),
     Instruction
@@ -137,12 +136,10 @@ instance Generatable (Program Core) where
            Update PredefinedOperator,
            Return,
            -- subroutine for if-then-else operator (address: 23)
-           Pushpre MachineInstruction.FIf,
-           Pushparam 2,
+           Pushparam 1,
            Unwind,
            Call,
            Operator OpIf,
-           Update PredefinedOperator,
            -- These instructions are to evaluate the resulting expression as well, since this is the intended behaviour for if-then-else expressions
            Unwind,
            Call,
