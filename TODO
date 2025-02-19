@@ -1,4 +1,0 @@
-stretch goal:
-- make typifier check for arrow-type-return-value in function (which machine doesn't support) - may be diffucult to implement, may be more simple to implement more powerful machine that supports whnf return arguments
-- investigate feasibility of eliminating precompiled heap from the code generator using AddDef command
-- investigate higher order functions: currently not possible with this abstract machine. what would be required to enable this?
