@@ -1,4 +1,4 @@
-# flang compiler project - Compilers, Abstract Machines WS2425
+# flang minilanguage
 ## What is this?
 This is a prototype for a compiler for the functional language F, which is defined in (1) François Bry und Norbert Eisinger: Übersetzerbau – Abstract Machines, 2004 (in German) (https://www.en.pms.ifi.lmu.de/publications/lecture-notes/uebersetzerbau/www-skriptum-2004.pdf).
 It also ships with an abstract machine that is a slightly simplified and corrected version of the one defined in (1) accompanying the language F.
