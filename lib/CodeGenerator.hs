@@ -32,7 +32,6 @@ import MachineInstruction
         Pushparam,
         Pushval,
         Return,
-        Slide,
         Unwind,
         Update
       ),
@@ -158,7 +157,7 @@ instance Generatable (Definition Core) where
     -- generate defining expression
     generator e
     -- append suffix for cleanup (at runtime) and returning
-    code %= (++ [Update n, Slide (n + 1), Unwind, Call, Return])
+    code %= (++ [Update n, Unwind, Call, Return])
     -- reset posList (compile-time cleanup)
     posList .= []
 

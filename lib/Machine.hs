@@ -6,12 +6,13 @@ module Machine where
 
 import Control.Lens (use, (.=))
 import Control.Lens.Operators ((+=))
+import Control.Monad (replicateM_)
 import Control.Monad.Extra (whileM)
 import Control.Monad.Trans.Except (ExceptT, throwE)
 import Control.Monad.Trans.State (StateT)
 import Data.IntMap as M (IntMap, adjust, filter, fromList, insert, lookup, lookupMin)
 import Data.List.Index as I (indexed)
-import Data.Vector as V (Vector, fromList, length, snoc, take, unsnoc, (!))
+import Data.Vector as V (Vector, fromList, length, snoc, unsnoc, (!))
 import GeneralLib (PrettyPrintable (prettyPrint))
 import MachineInstruction
   ( Arity,
@@ -186,6 +187,11 @@ getStackElement sa = do
     then return $ s V.! sa
     else throwError "getStackElement: index out of range!"
 
+stackSize :: (Monad m) => Computation m Int
+stackSize = do
+  s <- use stack
+  return $ V.length s
+
 integerToBool :: Integer -> Bool
 integerToBool 0 = False
 integerToBool _ = True
@@ -224,17 +230,24 @@ step = do
       a <- new $ APP a1 a2
       push a
       loadNextInstruction
-    Slide n -> do
+    {- stack management and indirection (before evaluating further, since this is called before Unwind + Call, but after expression generation code in function definition) -}
+    Update arity -> do
+      {- replace subexpression graph in heap by an indirection to the value it evaluates to
+        this implements lazy evaluation since this indirection applies to every other expression that points to it -}
       top <- pop
+      lenBefore <- stackSize
+      let sa = lenBefore - arity - 2
+      ha <- getStackElement sa
+      overrideObject ha (IND top)
+
       sndtop <- pop
-      s <- use stack
-      let newLength = V.length s - n
-      if newLength >= 0
-        then do
-          stack .= V.take newLength s
-          push sndtop
-          push top
-        else throwError "Slide: can't slide so many elements, stack too small!"
+      
+      {- remove from the stack arity + 1 elements below the topmost two to clear away the unneeded heap addresses from the old expression tree (Update is run after new expression is constructed)  -}
+      replicateM_ (arity + 1) pop
+
+      push sndtop
+      push top
+
       loadNextInstruction
     Unwind -> do
       top <- pop
@@ -259,16 +272,6 @@ step = do
       returnAddr <- pop
       push res
       jumpTo returnAddr
-    Update arity -> do
-      {- replace subexpression graph in heap by an indirection to the value it evaluates to
-        this implements lazy evaluation since this indirection applies to every other expression that points to it -}
-      s <- use stack
-      top <- pop
-      push top
-      let sa = V.length s - arity - 3
-      ha <- getStackElement sa
-      overrideObject ha (IND top)
-      loadNextInstruction
     Operator op -> case op of
       Smaller -> do
         -- The order of the operands on the stack for e1 - e2 is [addr(e2), addr(e1), return addr, addr(value(e1)), addr(value(e2))] <- TOP' (structure established by the subroutine for binary operators)

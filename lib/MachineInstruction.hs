@@ -21,7 +21,6 @@ data Instruction
   | Pushval Integer
   | Pushparam Int
   | Makeapp
-  | Slide Int
   | Unwind
   | Call
   | Return
