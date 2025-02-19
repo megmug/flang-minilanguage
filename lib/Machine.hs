@@ -296,17 +296,17 @@ step = do
       loadNextInstruction
     Operator op -> case op of
       Smaller -> do
-        -- The order of the operands on the stack is 'operand 1, operand 2 <- TOP' (structure established by the subroutine for binary operators)
-        operand2Addr <- pop
-        operand1Addr <- pop
+        -- The order of the operands on the stack for e1 - e2 is [addr(e2), addr(e1), return addr, addr(value(e1)), addr(value(e2))] <- TOP' (structure established by the subroutine for binary operators)
+        e2ValAddr <- pop
+        e1ValAddr <- pop
 
         returnAddr <- pop
         _ <- pop
         _ <- pop
 
-        operand1Obj <- getObject operand1Addr
-        operand2Obj <- getObject operand2Addr
-        resObj <- case (operand1Obj, operand2Obj) of
+        e1ValObj <- getObject e1ValAddr
+        e2ValObj <- getObject e2ValAddr
+        resObj <- case (e1ValObj, e2ValObj) of
           (VAL op1, VAL op2) -> return $ VAL $ boolToInteger $ op1 < op2
           _ -> throwError "Operator: Type error!"
 
@@ -316,16 +316,17 @@ step = do
 
         loadNextInstruction
       Minus -> do
-        -- The order of the operands on the stack is 'operator, operand 1, operand 2 <- TOP' (structure established by the subroutine for binary operators)
-        operand2Addr <- pop
-        operand1Addr <- pop
+        -- The order of the operands on the stack for e1 - e2 is [addr(e2), addr(e1), fun "-", return addr, addr(value(e1)), addr(value(e2))] <- TOP' (structure established by the subroutine for binary operators)
+        e2ValAddr <- pop
+        e1ValAddr <- pop
 
         returnAddr <- pop
         _ <- pop
         _ <- pop
-        operand1Obj <- getObject operand1Addr
-        operand2Obj <- getObject operand2Addr
-        resObj <- case (operand1Obj, operand2Obj) of
+
+        e1ValObj <- getObject e1ValAddr
+        e2ValObj <- getObject e2ValAddr
+        resObj <- case (e1ValObj, e2ValObj) of
           (VAL op1, VAL op2) -> return $ VAL $ op1 - op2
           _ -> throwError "Operator: Type error!"
 
