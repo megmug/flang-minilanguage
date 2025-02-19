@@ -274,13 +274,6 @@ step = do
               push top
               {- this is nasty - but according to spec! -}
               jumpTo 12
-          {- unary operator: otherwise op == Not -}
-          | otherwise -> do
-              pc <- use pcounter
-              push pc
-              {- push representation of operator onto stack -}
-              push top
-              jumpTo 20
         _ -> throwError "Call: Malformed object detected!"
     Return -> do
       res <- pop
