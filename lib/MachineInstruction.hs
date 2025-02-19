@@ -10,8 +10,6 @@ type StackAddress = Int
 
 type Arity = Int
 
-data UpdateArg = PredefinedOperator | Arity Int deriving (Eq, Show, Read)
-
 data FOperator
   = Smaller
   | Minus
@@ -27,7 +25,7 @@ data Instruction
   | Unwind
   | Call
   | Return
-  | Update UpdateArg
+  | Update Arity
   | Operator FOperator
   | Halt
   deriving (Eq, Show, Read)

@@ -36,7 +36,6 @@ import MachineInstruction
         Unwind,
         Update
       ),
-    UpdateArg (Arity),
   )
 import SyntaxTree
   ( Definition (..),
@@ -159,7 +158,7 @@ instance Generatable (Definition Core) where
     -- generate defining expression
     generator e
     -- append suffix for cleanup (at runtime) and returning
-    code %= (++ [Update (Arity n), Slide (n + 1), Unwind, Call, Return])
+    code %= (++ [Update n, Slide (n + 1), Unwind, Call, Return])
     -- reset posList (compile-time cleanup)
     posList .= []
 

@@ -21,7 +21,6 @@ import MachineInstruction
     HeapAddress,
     Instruction (..),
     StackAddress,
-    UpdateArg (..),
   )
 
 {- Type definitions -}
@@ -260,39 +259,15 @@ step = do
       returnAddr <- pop
       push res
       jumpTo returnAddr
-    Update arg -> do
-      case arg of
-        {- This case expects to be logically after a "Operator x" instruction, with the following stack state:
-         - [..., oldExprAddr, returnAddr, newValAddr <- TOP]
-         - where:
-         - oldExprAddr is the address of the expression before evaluation
-         - returnAddr is the saved return address (before the jump to the predefined-operator-subroutine)
-         - newValAddr is the address of the value from the expression evaluation
-         -
-         - It removes the address of the new value, points the old expression address to it and puts [returnAddr, oldExprAddr <- TOP].
-         -}
-        PredefinedOperator -> do
-          {- in case of a predefined operator, discard top element and swap remaining two top elements -}
-          newValAddr <- pop
-          returnAddr <- pop
-          oldExprAddr <- pop
-
-          {- Adjust heap cell at old expression address
-             Weirdly, this is missing in the spec but necessary to implement the (lazy) evaluation correctly
-             It is mentioned briefly in the introduction of the new instructions for complete MF though -}
-          overrideObject oldExprAddr (IND newValAddr)
-
-          push returnAddr
-          push oldExprAddr
-        Arity n -> do
-          {- replace subexpression graph in heap by an indirection to the value it evaluates to
-             this implements lazy evaluation since this indirection applies to every other expression that points to it -}
-          s <- use stack
-          top <- pop
-          push top
-          let sa = V.length s - n - 3
-          ha <- getStackElement sa
-          overrideObject ha (IND top)
+    Update arity -> do
+      {- replace subexpression graph in heap by an indirection to the value it evaluates to
+        this implements lazy evaluation since this indirection applies to every other expression that points to it -}
+      s <- use stack
+      top <- pop
+      push top
+      let sa = V.length s - arity - 3
+      ha <- getStackElement sa
+      overrideObject ha (IND top)
       loadNextInstruction
     Operator op -> case op of
       Smaller -> do
