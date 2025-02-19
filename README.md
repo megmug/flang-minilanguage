@@ -1,15 +1,22 @@
 # flang minilanguage
+
 ## What is this?
-This is a prototype for a compiler for the functional language F, which is defined in (1) François Bry und Norbert Eisinger: Übersetzerbau – Abstract Machines, 2004 (in German) (https://www.en.pms.ifi.lmu.de/publications/lecture-notes/uebersetzerbau/www-skriptum-2004.pdf).
-It also ships with an abstract machine that is a slightly simplified and corrected version of the one defined in (1) accompanying the language F.
+This is a compiler + abstract machine for the minimal functional language F, which is defined in (1) François Bry und Norbert Eisinger: Übersetzerbau – Abstract Machines, 2004 (in German) (https://www.en.pms.ifi.lmu.de/publications/lecture-notes/uebersetzerbau/www-skriptum-2004.pdf).
+The abstract machine is a slightly simplified and corrected version of the one defined in (1) accompanying the language F.
 The compiler extends the procedure in (1) by adding compile-time type-checking based on a polymorphic, iterative typification algorithm.
+
+## System requirements
+It should run on any modern Linux or MacOS system that has a working Nix installation.
+Windows was not tested, but it probably works, too.
+If you do not have a working Nix installation, you are on your own on providing the required Haskell + Stack versions as they are derived in the nix-shell definition.
+
 ## How to use?
-This project is based on Haskell Stack, so you need to have it in your environment before you can run the compiler.
-This can be accomplished by installing manually or by using Nix to derive a complete and development environment automatically.
-For this, Nix must be installed and can then be used to instantiate a dev-environment with 'nix-shell' (when called in the project root).
+This project is based on Haskell + Stack, so you need to have it in your environment before you can run the compiler.
+This can be accomplished by installing manually or by using Nix to derive a complete development environment automatically.
+This is done with Nix by issuing 'nix-shell' in your terminal (when called in the project root).
 If direnv is also installed and configured, it can do this automatically once 'direnv allow' was issued once in the project root.
 
-When the preparations are done, one can use 'stack run <executable> <filepath>' to run the executable <filepath> with file <filepath>.
+When the preparations are done, one can use 'stack run executable filepath' to run the executable filepath with file filepath.
 When running directly inside a nix-shell, 'stack run' can actually be omitted since bash aliases are defined for all executables.
 The project defines the following executables:
 
