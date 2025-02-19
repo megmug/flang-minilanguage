@@ -10,14 +10,14 @@ It should run on any modern Linux or MacOS system that has a working Nix install
 Windows was not tested, but it probably works, too.
 If you do not have a working Nix installation, you are on your own on providing the required Haskell + Stack versions as they are derived in the nix-shell definition.
 
-## How to use?
+## How to use
 This project is based on Haskell + Stack, so you need to have it in your environment before you can run the compiler.
 This can be accomplished by installing manually or by using Nix to derive a complete development environment automatically.
 This is done with Nix by issuing 'nix-shell' in your terminal (when called in the project root).
 If direnv is also installed and configured, it can do this automatically once 'direnv allow' was issued once in the project root.
 
-When the preparations are done, one can use 'stack run executable filepath' to run the executable filepath with file filepath.
-When running directly inside a nix-shell, 'stack run' can actually be omitted since bash aliases are defined for all executables.
+When the preparations are done, one can use "stack run 'executable' 'filepath'" to run the executable 'executable' with file 'filepath'.
+When running directly inside a nix-shell, "stack run" can actually be omitted since bash aliases are defined for all executables.
 The project defines the following executables:
 
 | Executable             | Function                                                                                                                                          |
