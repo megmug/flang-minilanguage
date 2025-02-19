@@ -27,7 +27,6 @@ data Instruction
   | Unwind
   | Call
   | Return
-  | Pushpre FOperator
   | Update UpdateArg
   | Operator FOperator
   | Halt

@@ -260,10 +260,6 @@ step = do
       returnAddr <- pop
       push res
       jumpTo returnAddr
-    Pushpre op -> do
-      obj <- new $ PRE op
-      push obj
-      loadNextInstruction
     Update arg -> do
       case arg of
         {- This case expects to be logically after a "Operator x" instruction, with the following stack state:
