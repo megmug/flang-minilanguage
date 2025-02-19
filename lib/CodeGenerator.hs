@@ -36,7 +36,7 @@ import MachineInstruction
         Unwind,
         Update
       ),
-    UpdateArg (Arity, PredefinedOperator),
+    UpdateArg (Arity),
   )
 import SyntaxTree
   ( Definition (..),
@@ -120,9 +120,8 @@ instance Generatable (Program Core) where
            Unwind,
            Call,
            Operator MachineInstruction.Smaller,
-           Update PredefinedOperator,
            Return,
-           -- subroutine for minus operator (address: 12)
+           -- subroutine for minus operator (address: 11)
            Pushparam 1,
            Unwind,
            Call,
@@ -130,9 +129,8 @@ instance Generatable (Program Core) where
            Unwind,
            Call,
            Operator MachineInstruction.Minus,
-           Update PredefinedOperator,
            Return,
-           -- subroutine for if-then-else operator (address: 21)
+           -- subroutine for if-then-else operator (address: 19)
            Pushparam 1,
            Unwind,
            Call,
@@ -143,7 +141,7 @@ instance Generatable (Program Core) where
            Return
          ]
     -- add function definitions for predefined functions
-    heapEnv .= [DEF "<" 2 3, DEF "-" 2 12, DEF "#if" 3 21]
+    heapEnv .= [DEF "<" 2 3, DEF "-" 2 11, DEF "#if" 3 19]
     -- to understand why we need to generate function defs iteratively, see generateDefs
     traverse_ addToGlobalFuncs defs
     -- generate all definitions

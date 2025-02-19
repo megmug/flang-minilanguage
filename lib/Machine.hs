@@ -310,9 +310,17 @@ step = do
           (VAL op1, VAL op2) -> return $ VAL $ boolToInteger $ op1 < op2
           _ -> throwError "Operator: Type error!"
 
-        push returnAddr
+        {- perform cleanup:
+         - the address of e2 is simultaneously the address of the expression that is replaced by the computed result
+         - so adjust e2addr to be an indirection to the result's address
+         - then push return address and e2addr to the stack
+         -}
+        e2Addr <- pop
         resAddr <- new resObj
-        push resAddr
+        overrideObject e2Addr (IND resAddr)
+
+        push returnAddr
+        push e2Addr
 
         loadNextInstruction
       Minus -> do
@@ -330,9 +338,17 @@ step = do
           (VAL op1, VAL op2) -> return $ VAL $ op1 - op2
           _ -> throwError "Operator: Type error!"
 
-        push returnAddr
+        {- perform cleanup:
+         - the address of e2 is simultaneously the address of the expression that is replaced by the computed result
+         - so adjust e2addr to be an indirection to the result's address
+         - then push return address and e2addr to the stack
+         -}
+        e2Addr <- pop
         resAddr <- new resObj
-        push resAddr
+        overrideObject e2Addr (IND resAddr)
+
+        push returnAddr
+        push e2Addr
 
         loadNextInstruction
       {- stack layout on call for if cond then e1 else e2: [e2 (and addr of the if-then-else-application), e1, cond, DEF "if", return addr, cond <- TOP]
