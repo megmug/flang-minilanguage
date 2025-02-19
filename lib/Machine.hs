@@ -272,7 +272,7 @@ step = do
       returnAddr <- pop
       push res
       jumpTo returnAddr
-    Operator FIf -> do
+    Operator If -> do
       -- stack layout on call for if cond then e1 else e2: [e2 (and addr of the if-then-else-application), e1, cond, DEF "if", return addr, cond <- TOP]
       condAddr <- pop
       returnAddr <- pop

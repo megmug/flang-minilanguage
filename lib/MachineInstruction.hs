@@ -13,7 +13,7 @@ type Arity = Int
 data FOperator
   = Smaller
   | Minus
-  | FIf
+  | If
   deriving (Eq, Show, Read)
 
 data Instruction

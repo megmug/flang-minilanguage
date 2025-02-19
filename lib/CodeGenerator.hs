@@ -19,7 +19,7 @@ import Machine (Object (DEF))
 import MachineInstruction
   ( Arity,
     FOperator
-      ( FIf,
+      ( If,
         Minus,
         Smaller
       ),
@@ -132,7 +132,7 @@ instance Generatable (Program Core) where
            Pushparam 1,
            Unwind,
            Call,
-           Operator FIf,
+           Operator If,
            -- These instructions are to evaluate the resulting expression as well, since this is the intended behaviour for if-then-else expressions
            Unwind,
            Call,
