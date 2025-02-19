@@ -219,7 +219,7 @@ instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
   typifier (Let defs e) = do
     -- if there are conflicting definitions, throw error
     when (hasConflictingLetBindings defs) $ throwError $ "conflicting bindings detected in " ++ prettyPrint defs ++ "!"
-    -- topologically sort definitions and sort them in order
+    -- topologically sort definitions
     case topologicallySort defs isDependentOn of
       Nothing -> throwError $ "unsupported: local definitions '" ++ prettyPrint defs ++ "' are recursive!"
       Just [] -> typifier e
