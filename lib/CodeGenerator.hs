@@ -19,7 +19,8 @@ import Machine (Object (DEF))
 import MachineInstruction
   ( Arity,
     FOperator
-      ( Minus,
+      ( FIf,
+        Minus,
         Smaller
       ),
     Instruction
@@ -29,14 +30,12 @@ import MachineInstruction
         Operator,
         Pushfun,
         Pushparam,
-        Pushpre,
         Pushval,
         Return,
         Slide,
         Unwind,
         Update
       ),
-    OperatorArg (OpIf, Two),
     UpdateArg (Arity, PredefinedOperator),
   )
 import SyntaxTree
@@ -114,39 +113,37 @@ instance Generatable (Program Core) where
            Call,
            Halt,
            -- subroutine for smaller operator (address: 3)
-           Pushpre MachineInstruction.Smaller,
-           Pushparam 2,
-           Unwind,
-           Call,
-           Pushparam 4,
-           Unwind,
-           Call,
-           Operator Two,
-           Update PredefinedOperator,
-           Return,
-           -- subroutine for minus operator (address: 13)
-           Pushpre MachineInstruction.Minus,
-           Pushparam 2,
-           Unwind,
-           Call,
-           Pushparam 4,
-           Unwind,
-           Call,
-           Operator Two,
-           Update PredefinedOperator,
-           Return,
-           -- subroutine for if-then-else operator (address: 23)
            Pushparam 1,
            Unwind,
            Call,
-           Operator OpIf,
+           Pushparam 3,
+           Unwind,
+           Call,
+           Operator MachineInstruction.Smaller,
+           Update PredefinedOperator,
+           Return,
+           -- subroutine for minus operator (address: 12)
+           Pushparam 1,
+           Unwind,
+           Call,
+           Pushparam 3,
+           Unwind,
+           Call,
+           Operator MachineInstruction.Minus,
+           Update PredefinedOperator,
+           Return,
+           -- subroutine for if-then-else operator (address: 21)
+           Pushparam 1,
+           Unwind,
+           Call,
+           Operator FIf,
            -- These instructions are to evaluate the resulting expression as well, since this is the intended behaviour for if-then-else expressions
            Unwind,
            Call,
            Return
          ]
     -- add function definitions for predefined functions
-    heapEnv .= [DEF "<" 2 3, DEF "-" 2 13, DEF "#if" 3 23]
+    heapEnv .= [DEF "<" 2 3, DEF "-" 2 12, DEF "#if" 3 21]
     -- to understand why we need to generate function defs iteratively, see generateDefs
     traverse_ addToGlobalFuncs defs
     -- generate all definitions

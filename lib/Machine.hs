@@ -20,7 +20,6 @@ import MachineInstruction
     FunctionName,
     HeapAddress,
     Instruction (..),
-    OperatorArg (..),
     StackAddress,
     UpdateArg (..),
   )
@@ -300,21 +299,38 @@ step = do
           overrideObject ha (IND top)
       loadNextInstruction
     Operator op -> case op of
-      Two -> do
+      Smaller -> do
+        -- The order of the operands on the stack is 'operand 1, operand 2 <- TOP' (structure established by the subroutine for binary operators)
+        operand2Addr <- pop
+        operand1Addr <- pop
+
+        returnAddr <- pop
+        _ <- pop
+        _ <- pop
+
+        operand1Obj <- getObject operand1Addr
+        operand2Obj <- getObject operand2Addr
+        resObj <- case (operand1Obj, operand2Obj) of
+          (VAL op1, VAL op2) -> return $ VAL $ boolToInteger $ op1 < op2
+          _ -> throwError "Operator: Type error!"
+
+        push returnAddr
+        resAddr <- new resObj
+        push resAddr
+
+        loadNextInstruction
+      Minus -> do
         -- The order of the operands on the stack is 'operator, operand 1, operand 2 <- TOP' (structure established by the subroutine for binary operators)
         operand2Addr <- pop
         operand1Addr <- pop
 
-        opAddr <- pop
         returnAddr <- pop
         _ <- pop
         _ <- pop
-        opObj <- getObject opAddr
         operand1Obj <- getObject operand1Addr
         operand2Obj <- getObject operand2Addr
-        resObj <- case (operand1Obj, operand2Obj, opObj) of
-          (VAL op1, VAL op2, PRE Smaller) -> return $ VAL $ boolToInteger $ op1 < op2
-          (VAL op1, VAL op2, PRE Minus) -> return $ VAL $ op1 - op2
+        resObj <- case (operand1Obj, operand2Obj) of
+          (VAL op1, VAL op2) -> return $ VAL $ op1 - op2
           _ -> throwError "Operator: Type error!"
 
         push returnAddr
@@ -324,7 +340,7 @@ step = do
         loadNextInstruction
       {- stack layout on call for if cond then e1 else e2: [e2 (and addr of the if-then-else-application), e1, cond, DEF "if", return addr, cond <- TOP]
        -}
-      OpIf -> do
+      FIf -> do
         condAddr <- pop
         returnAddr <- pop
         _ <- pop

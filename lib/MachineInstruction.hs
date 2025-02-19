@@ -12,8 +12,6 @@ type Arity = Int
 
 data UpdateArg = PredefinedOperator | Arity Int deriving (Eq, Show, Read)
 
-data OperatorArg = Two | OpIf deriving (Eq, Show, Read)
-
 data FOperator
   = Smaller
   | Minus
@@ -31,6 +29,6 @@ data Instruction
   | Return
   | Pushpre FOperator
   | Update UpdateArg
-  | Operator OperatorArg
+  | Operator FOperator
   | Halt
   deriving (Eq, Show, Read)
