@@ -1,5 +1,5 @@
 bool x = x == true | x == false;
-f x = if bool x | x < 0
+f x = if bool x | x < 1
       then 1
       else x * f (x - 1);
 main = f 6;
