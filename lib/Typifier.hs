@@ -14,6 +14,7 @@ import Control.Lens.Operators ((.=))
 import Control.Monad (replicateM, when)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
 import Control.Monad.Trans.State (State, evalState)
+import Data.Foldable (traverse_)
 import Data.List (delete, nub, uncons)
 import GeneralLib (PrettyPrintable (prettyPrint), topologicallySort, topologicallySortedPartitioning)
 import SyntaxTree
@@ -105,16 +106,12 @@ instance Typifiable (Program Raw) MonoType where
     -- we start by grouping the definitions into mutually recursive sets of functions
     let groups = topologicallySortedPartitioning defs isUsedBy
     -- we typify these mutually recursive sets in topological order
-    defsTypes <- do
-      let typifyAndAdd definitions =
-            ( do
-                as <- typifier definitions
-                mapM_ addToTypeAssumptions as
-                return as
-            )
-      ass <- traverse typifyAndAdd groups
-      return $ concat ass
-    mapM_ addToTypeAssumptions defsTypes
+    let typifyAndAdd definitions =
+          ( do
+              as <- (typifier definitions :: Typifier TypeAssumptions)
+              mapM_ addToTypeAssumptions as
+          )
+    traverse_ typifyAndAdd groups
     -- we check if we obtained a type for the main function, and if that type is consistent with F's assumptions (must be Bool or Integer)
     -- if it is, we return that type
     -- it it isn't, typification fails
