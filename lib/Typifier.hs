@@ -243,7 +243,6 @@ instance Typifiable (Expression Raw) (MonoType, TypeEquations) where
   typifier (Disjunction e1 e2) = typifier (Application (Application (Variable "|") e1) e2)
   typifier (Minus e) = typifier (Application (Variable "u-") e)
 
-
 {- Helper functions, typeclass instances, etc. -}
 
 hasConflictingDefinition :: [Definition s] -> Bool
