@@ -427,6 +427,9 @@ instance PrettyPrintable PolyType where
 instance PrettyPrintable TypeAssumption where
   prettyPrint (Assumption v t) = v ++ " :: " ++ prettyPrint t
 
+instance PrettyPrintable TypeAssumptions where
+  prettyPrint xs = show $ map prettyPrint xs
+
 instance PrettyPrintable TypeEquation where
   prettyPrint (a :=: b) = prettyPrint a ++ " = " ++ prettyPrint b
 
