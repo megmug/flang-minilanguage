@@ -54,7 +54,6 @@ data Object
   | DEF FunctionName Arity CodeAddress
   | APP HeapAddress HeapAddress
   | IND HeapAddress
-  | PRE FOperator
   deriving (Eq, Show, Read)
 
 -- A computation is a monadic action featuring a Machine state and a possible string exception
